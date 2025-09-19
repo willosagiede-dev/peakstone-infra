@@ -20,3 +20,6 @@ build/
 
 # explicitly ignore app env
 /infra/.env
+
+# pgCat config with secrets (keep example tracked)
+/infra/pgcat/pgcat.toml
