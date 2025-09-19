@@ -9,7 +9,6 @@ create extension if not exists btree_gist;
 create extension if not exists citext;
 create extension if not exists unaccent;
 create extension if not exists hypopg;
-create extension if not exists pg_qualstats;
 
 -- JWT helpers
 create schema if not exists common;

@@ -13,10 +13,6 @@ RUN apt-get update \
       postgresql-17-cron \
       postgresql-17-pgaudit \
       postgresql-17-hypopg \
-      postgresql-17-qualstats \
       postgresql-17-repack \
-      postgresql-17-pg-trgm \
-      postgresql-17-citext \
-      postgresql-17-btree-gin \
-      postgresql-17-btree-gist \
+      postgresql-contrib-17 \
  && rm -rf /var/lib/apt/lists/*
