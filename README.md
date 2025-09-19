@@ -119,7 +119,9 @@ This repo is designed for Traefik/Dokploy in production. For local testing witho
 - Optional helper:
   - ./infra/scripts/generate-secrets.sh [DB_APP_USER]
   - Paste the output into infra/.env
-- Compute pgCat MD5 (the generator prints it) and update both entries in infra/pgcat/pgcat.toml, replacing md5__FILL_ME__.
+- Copy the pgCat config example and fill passwords:
+  - cp infra/pgcat/pgcat.toml.example infra/pgcat/pgcat.toml
+  - Compute pgCat MD5 (the generator prints it) and update both entries in infra/pgcat/pgcat.toml, replacing md5__FILL_ME__.
 
 2) Build the custom Postgres image
 - docker compose -f infra/docker-compose.yml build postgres
