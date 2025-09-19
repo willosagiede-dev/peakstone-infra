@@ -1,0 +1,22 @@
+# generic
+.DS_Store
+node_modules/
+dist/
+build/
+.env
+.env.*
+*.log
+
+# dumps / secrets
+*.dump
+*.bak
+*.key
+*.pem
+
+# env files in any subdirectory (protect secrets)
+**/.env
+**/.env.*
+!**/.env.example
+
+# explicitly ignore app env
+/infra/.env

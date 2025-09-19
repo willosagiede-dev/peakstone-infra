@@ -1,0 +1,220 @@
+# Compose Spec (no version key)
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true   # set to your Dokploy Traefik network
+    name: ${PROXY_NETWORK:-dokploy-network}
+
+volumes:
+  pg_data:
+  pgadmin_data:
+  minio_data:
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile
+    image: peakstone/postgres:17.6-exts
+    container_name: ps-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASS}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: ${TZ}
+    command: >
+      postgres
+        -c wal_level=logical
+        -c shared_preload_libraries=pg_stat_statements,pgaudit,pg_cron,auto_explain
+        -c pgaudit.log=ddl
+        -c cron.database_name=${POSTGRES_DB}
+        -c max_wal_size=2GB
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_SUPERUSER} -d $${POSTGRES_DB} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # One-off DB bootstrap: create app_user (idempotent) using env secrets
+  db-bootstrap:
+    image: postgres:17.6
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_SUPERPASS}
+      DB_APP_USER: ${DB_APP_USER}
+      DB_APP_PASS: ${DB_APP_PASS}
+      POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
+      POSTGRES_DB: ${POSTGRES_DB}
+    entrypoint: ["/bin/sh","-lc"]
+    command: >
+      'until pg_isready -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB}; do sleep 1; done &&
+       psql -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "
+       DO $$
+       BEGIN
+         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ''${DB_APP_USER}'') THEN
+           EXECUTE format(''CREATE ROLE %I NOINHERIT LOGIN PASSWORD %L'', ''${DB_APP_USER}'', ''${DB_APP_PASS}'');
+         END IF;
+       END$$;
+       "'
+    restart: "no"
+    networks: [internal]
+
+  pgcat:
+    image: ghcr.io/postgresml/pgcat:latest
+    container_name: ps-pgcat
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
+    command: ["-c", "/etc/pgcat/pgcat.toml"]
+    volumes:
+      - ./pgcat/pgcat.toml:/etc/pgcat/pgcat.toml:ro
+    networks: [internal]
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: ps-postgrest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgcat:
+        condition: service_started
+    environment:
+      PGRST_DB_URI: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}?pool=peakstone_tx
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_DB_SCHEMAS: public,common,people,pipeline,activities,leads,docs
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_ROLE_CLAIM_KEY: .role
+      PGRST_DB_PREPARED_STATEMENTS: "false"
+      PGRST_OPENAPI_SERVER_PROXY_URI: https://${DOMAIN_API}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.postgrest.rule=Host(`${DOMAIN_API}`)
+      - traefik.http.routers.postgrest.entrypoints=websecure
+      - traefik.http.routers.postgrest.tls=true
+      - traefik.http.services.postgrest.loadbalancer.server.port=3000
+    networks: [internal, proxy]
+
+  hasura:
+    image: hasura/graphql-engine:v2.40.0-ce
+    container_name: ps-hasura
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgcat:
+        condition: service_started
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}?pool=peakstone_session
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: web_anon
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log,websocket-log,query-log
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: "true"
+      HASURA_GRAPHQL_CORS_DOMAIN: ${HASURA_CORS}
+      HASURA_GRAPHQL_JWT_SECRET: >
+        {"type":"HS256","key":"${JWT_SECRET}","claims_namespace_path":"$","claims_format":"json"}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.hasura.rule=Host(`${DOMAIN_GQL}`)
+      - traefik.http.routers.hasura.entrypoints=websecure
+      - traefik.http.routers.hasura.tls=true
+      - traefik.http.services.hasura.loadbalancer.server.port=8080
+    networks: [internal, proxy]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: ps-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASS}
+    volumes:
+      - minio_data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.minio-api.rule=Host(`${DOMAIN_FILES}`)
+      - traefik.http.routers.minio-api.entrypoints=websecure
+      - traefik.http.routers.minio-api.tls=true
+      - traefik.http.services.minio-api.loadbalancer.server.port=9000
+      - traefik.http.routers.minio-console.rule=Host(`${DOMAIN_MINIO_CONSOLE}`)
+      - traefik.http.routers.minio-console.entrypoints=websecure
+      - traefik.http.routers.minio-console.tls=true
+      - traefik.http.services.minio-console.loadbalancer.server.port=9001
+    networks: [internal, proxy]
+
+  imgproxy:
+    image: darthsim/imgproxy:v3.8.0
+    container_name: ps-imgproxy
+    restart: unless-stopped
+    environment:
+      IMGPROXY_KEY: ${IMGPROXY_KEY_HEX}
+      IMGPROXY_SALT: ${IMGPROXY_SALT_HEX}
+      IMGPROXY_BASE_URL: ${IMGPROXY_BASE_URL}
+      IMGPROXY_ALLOWED_SOURCES: ${IMGPROXY_ALLOWED_SOURCES}
+      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+      IMGPROXY_MAX_SRC_RESOLUTION: "80"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
+      - traefik.http.routers.imgproxy.entrypoints=websecure
+      - traefik.http.routers.imgproxy.tls=true
+      - traefik.http.services.imgproxy.loadbalancer.server.port=8080
+    networks: [internal, proxy]
+
+  # One-off MinIO bootstrap: creates bucket + policy
+  minio-init:
+    image: ${MINIO_MC_IMAGE:-minio/mc:RELEASE.2025-04-22T22-12-26Z}
+    container_name: ps-minio-init
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: ["/bin/sh","/init/minio-init.sh"]
+    environment:
+      MINIO_ALIAS: ${MINIO_ALIAS:-minio}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASS: ${MINIO_ROOT_PASS}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      S3_APP_ACCESS_KEY: ${S3_APP_ACCESS_KEY}
+      S3_APP_SECRET_KEY: ${S3_APP_SECRET_KEY}
+    volumes:
+      - ./minio/init:/init:ro
+    networks: [internal]
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: ps-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
+      - traefik.http.routers.pgadmin.entrypoints=websecure
+      - traefik.http.routers.pgadmin.tls=true
+      - traefik.http.services.pgadmin.loadbalancer.server.port=80
+    networks: [internal, proxy]
