@@ -82,8 +82,8 @@ It prints:
 ### Service settings
 
 - MinIO client image (mc)
-  - `minio-init` uses `${MINIO_MC_IMAGE}` to select the mc release. By default it matches the MinIO server series.
-  - Set `MINIO_MC_IMAGE` in `infra/.env` to a specific `minio/mc:RELEASE.<date>` that aligns with your MinIO server tag.
+  - `minio-init` uses `${MINIO_MC_IMAGE}`; default is `minio/mc:latest`.
+  - If you want to pin, set `MINIO_MC_IMAGE` in `infra/.env` to a valid tag from the mc repository (e.g., `minio/mc:RELEASE.<date>` that actually exists).
 
 - imgproxy allowed sources
   - Set `IMGPROXY_ALLOWED_SOURCES` in `infra/.env` to a comma‑separated list of URL prefixes that imgproxy is allowed to fetch from.
