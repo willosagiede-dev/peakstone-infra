@@ -11,15 +11,11 @@ RUN set -eux; \
     | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
-    postgresql-17-contrib \
+    postgresql-contrib-17 \
     postgresql-17-pgaudit \
     postgresql-17-hypopg \
     postgresql-17-repack \
-    postgresql-17-cron \
-    postgresql-17-qualstats; \
+    postgresql-17-cron; \
   rm -rf /var/lib/apt/lists/*
 
-# Preload libraries needed by some extensions and configure pg_cron
-# (The sample file is copied into new clusters by the official image.)
-RUN echo "shared_preload_libraries = 'pg_stat_statements,pgaudit,pg_cron,pg_qualstats'" >> /usr/local/share/postgresql/postgresql.conf.sample \
- && echo "cron.database_name = 'postgres'" >> /usr/local/share/postgresql/postgresql.conf.sample
+# Note: shared_preload_libraries and pg_cron DB are set via docker-compose command flags.
