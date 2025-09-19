@@ -13,10 +13,7 @@ volumes:
 
 services:
   postgres:
-    build:
-      context: .
-      dockerfile: postgres/Dockerfile
-    image: peakstone/postgres:17.6-exts
+    image: ${POSTGRES_IMAGE}
     container_name: ps-postgres
     restart: unless-stopped
     environment:

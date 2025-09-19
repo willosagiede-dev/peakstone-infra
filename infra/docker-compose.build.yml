@@ -1,0 +1,6 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile
+    image: local/peakstone-postgres:17.6-exts

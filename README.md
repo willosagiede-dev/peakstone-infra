@@ -124,7 +124,11 @@ This repo is designed for Traefik/Dokploy in production. For local testing witho
   - Compute pgCat MD5 (the generator prints it) and update both entries in infra/pgcat/pgcat.toml, replacing md5__FILL_ME__.
 
 2) Build the custom Postgres image
-- docker compose -f infra/docker-compose.yml build postgres
+- Option A (local build):
+  - docker compose -f infra/docker-compose.yml -f infra/docker-compose.build.yml build postgres
+  - docker compose -f infra/docker-compose.yml -f infra/docker-compose.build.yml up -d postgres
+  - This uses a local image tag: local/peakstone-postgres:17.6-exts
+- Option B (pull from GHCR): set `POSTGRES_IMAGE` in `infra/.env` to the GHCR image you publish (see below), then skip local build.
 
 3) Start the stack with local override
 - docker compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml up -d
@@ -153,3 +157,25 @@ This repo is designed for Traefik/Dokploy in production. For local testing witho
 Notes
 - If a localhost port is taken, edit infra/docker-compose.local.yml and change the left-hand port.
 - For production/Dokploy, don’t use the local override. Use the main compose (and optional pinned override) with Traefik.
+
+## Production Postgres Image (GHCR)
+
+Build and publish your custom Postgres image to GHCR so Dokploy pulls it instead of building on the server.
+
+1) Enable GitHub Packages for the repo
+- Ensure Actions has packages: write permissions (this workflow sets it).
+
+2) Build via GitHub Actions
+- Trigger the workflow manually (Actions → Build Postgres Image → Run) or push changes under `infra/postgres/`.
+- The workflow publishes:
+  - ghcr.io/<OWNER>/peakstone-postgres:17.6-exts
+  - ghcr.io/<OWNER>/peakstone-postgres:latest
+
+3) Configure Dokploy to use the image
+- Set `POSTGRES_IMAGE` in `infra/.env` (or Dokploy’s env UI) to your GHCR image, e.g.:
+  - POSTGRES_IMAGE=ghcr.io/<OWNER>/peakstone-postgres:17.6-exts
+- Make sure Dokploy can pull from GHCR (public is easiest). For private images, add registry credentials in Dokploy.
+
+4) Deploy
+- In Dokploy, point to `infra/docker-compose.yml` (and optional pinned override).
+- Deploy; the server will pull your prebuilt Postgres image.
