@@ -1,0 +1,153 @@
+# PeakStone Infra (Dokploy)
+
+This repo contains the shared “backend as a service” stack for PeakStone:
+- Postgres 17.6 (custom image with pg_cron, pgaudit, etc.)
+- pgCat (two pools: transaction + session)
+- PostgREST (REST over RLS)
+- Hasura CE (GraphQL + subscriptions)
+- MinIO + imgproxy
+- pgAdmin
+- MinIO bootstrap job (mc)
+- Docker Compose (no version key)
+
+## Quick start
+
+1) **Create the repo & push**
+git init peakstone-infra && cd peakstone-infra
+# add all files from this folder structure
+git add .
+git commit -m "infra: initial stack"
+git branch -M main
+# on GitHub/GitLab, create an empty repo then:
+git remote add origin <YOUR_GIT_REMOTE_URL>
+git push -u origin main
+
+## Secrets to set
+
+Populate `infra/.env.example` (copy to `infra/.env`) with strong values:
+- POSTGRES_SUPERPASS: 24–32 char random
+- DB_APP_PASS: 24–32 char random
+- JWT_SECRET: 32 bytes random (hex or base64)
+- HASURA_ADMIN_SECRET: 32 bytes random
+- MINIO_ROOT_PASS: 24–32 char random
+- S3_APP_SECRET_KEY: 24–32 char random
+- IMGPROXY_KEY_HEX: 32-byte hex (64 hex chars)
+- IMGPROXY_SALT_HEX: 16-byte hex (32 hex chars)
+- PGADMIN_EMAIL / PGADMIN_PASSWORD: real email + strong password
+
+pgCat needs the Postgres MD5 hash form for the `app_user` password in `infra/pgcat/pgcat.toml`:
+- Format is `md5` + MD5(DB_APP_PASS + DB_APP_USER)
+
+### Generate examples
+
+# 32 bytes hex (JWT, Hasura)
+openssl rand -hex 32
+
+# 24-char base64 (general secrets)
+openssl rand -base64 24
+
+# imgproxy: key (32 bytes hex) and salt (16 bytes hex)
+IMGPROXY_KEY_HEX=$(openssl rand -hex 32)
+IMGPROXY_SALT_HEX=$(openssl rand -hex 16)
+echo $IMGPROXY_KEY_HEX
+echo $IMGPROXY_SALT_HEX
+
+# pgCat md5 for app_user (replace pass/user if different)
+DB_APP_PASS="appsecret"; DB_APP_USER="app_user";
+echo -n "md5$(printf "%s" "$DB_APP_PASS$DB_APP_USER" | md5)"
+
+
+Paste the resulting `md5...` value into both `password` entries for `app_user` in `infra/pgcat/pgcat.toml`.
+
+### One-shot generator script
+
+You can generate a complete .env snippet and the pgCat MD5 with:
+
+./infra/scripts/generate-secrets.sh
+# defaults DB_APP_USER to app_user
+# or use -- ./infra/scripts/generate-secrets.sh [DB_APP_USER] -- to generate with your custom DB_APP_USER
+
+
+It prints:
+- Ready-to-paste env lines for infra/.env
+- The pgCat md5 password for both pools
+
+## Notes
+
+- MinIO policy now follows `MINIO_BUCKET` dynamically during bootstrap; no manual edits needed.
+- Ensure your Traefik/Dokploy network exists (`dokploy-network`) before bringing the stack up.
+  - You can customize the network name via `PROXY_NETWORK` in `infra/.env`.
+- PostgREST uses role `web_anon`, created in the Postgres init script.
+
+### Service settings
+
+- MinIO client image (mc)
+  - `minio-init` uses `${MINIO_MC_IMAGE}` to select the mc release. By default it matches the MinIO server series.
+  - Set `MINIO_MC_IMAGE` in `infra/.env` to a specific `minio/mc:RELEASE.<date>` that aligns with your MinIO server tag.
+
+- imgproxy allowed sources
+  - Set `IMGPROXY_ALLOWED_SOURCES` in `infra/.env` to a comma‑separated list of URL prefixes that imgproxy is allowed to fetch from.
+  - Example (production): `https://s3.internal.example.com/`
+  - Example (local): `http://localhost:9000/` or `http://minio:9000/`
+  - Keep it as tight as possible to avoid pulling from arbitrary hosts.
+
+## Healthchecks & Startup
+
+- Postgres includes a healthcheck (`pg_isready`).
+- Dependent services now wait on Postgres healthy; pgCat waits on DB bootstrap to complete.
+
+## Pin Images by Digest
+
+For reproducible deployments, generate a pinned override file with image digests:
+
+./infra/scripts/pin-images.sh
+# Then use the override when deploying
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.pinned.yml up -d
+
+
+Notes:
+- This resolves and pins registry images (pgCat, PostgREST, Hasura, MinIO, mc, imgproxy, pgAdmin).
+- The custom Postgres image is built locally (not pinned by digest here). To pin it, push to a registry first and reference the resulting digest.
+
+## Run Locally (no Traefik)
+
+This repo is designed for Traefik/Dokploy in production. For local testing without Traefik, use the provided override to expose ports on localhost.
+
+1) Generate secrets and prepare .env
+- Copy the example and fill with strong values:
+  - cp infra/.env.example infra/.env
+- Optional helper:
+  - ./infra/scripts/generate-secrets.sh [DB_APP_USER]
+  - Paste the output into infra/.env
+- Compute pgCat MD5 (the generator prints it) and update both entries in infra/pgcat/pgcat.toml, replacing md5__FILL_ME__.
+
+2) Build the custom Postgres image
+- docker compose -f infra/docker-compose.yml build postgres
+
+3) Start the stack with local override
+- docker compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml up -d
+
+4) Verify services
+- Check status: docker compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml ps
+- Tail logs (e.g. postgres): docker compose -f infra/docker-compose.yml logs -f postgres
+
+5) Access endpoints on localhost
+- PostgREST: http://localhost:3000
+- Hasura: http://localhost:8080/healthz (200 OK)
+- MinIO API: http://localhost:9000 (S3)
+- MinIO Console: http://localhost:9001
+- imgproxy: http://localhost:8081
+- pgAdmin: http://localhost:8082
+
+6) Connect pgAdmin to pgCat
+- Add a new server:
+  - Name: PeakStone via pgCat
+  - Host: pgcat
+  - Port: 6432
+  - Username: DB_APP_USER from .env
+  - Password: DB_APP_PASS from .env
+  - Database: POSTGRES_DB from .env (optional, can leave blank)
+
+Notes
+- If a localhost port is taken, edit infra/docker-compose.local.yml and change the left-hand port.
+- For production/Dokploy, don’t use the local override. Use the main compose (and optional pinned override) with Traefik.
