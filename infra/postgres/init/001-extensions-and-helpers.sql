@@ -1,14 +1,17 @@
 -- Extensions
-create extension if not exists pg_stat_statements;
-create extension if not exists pg_cron;
-create extension if not exists pgaudit;
-create extension if not exists pgcrypto;
-create extension if not exists pg_trgm;
-create extension if not exists btree_gin;
-create extension if not exists btree_gist;
-create extension if not exists citext;
-create extension if not exists unaccent;
-create extension if not exists hypopg;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pgaudit;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS btree_gin;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS unaccent;
+CREATE EXTENSION IF NOT EXISTS hypopg;
+/* Optional if you actually use them during runtime: */
+-- CREATE EXTENSION IF NOT EXISTS pg_qualstats;
+-- CREATE EXTENSION IF NOT EXISTS pg_repack; -- usually used via CLI during maintenance
 
 -- JWT helpers
 create schema if not exists common;
