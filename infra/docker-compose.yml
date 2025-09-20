@@ -74,7 +74,7 @@ services:
         condition: service_healthy
       db-bootstrap:
         condition: service_completed_successfully
-    command: ["-c", "/etc/pgcat.toml"]
+    command: ["pgcat", "-c", "/etc/pgcat.toml"]
     volumes:
       - ./pgcat/pgcat.toml:/etc/pgcat.toml:ro
     networks: [internal]
