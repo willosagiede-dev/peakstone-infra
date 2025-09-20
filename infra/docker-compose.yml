@@ -76,7 +76,7 @@ services:
         condition: service_completed_successfully
     command: ["pgcat", "/etc/pgcat.toml"]
     volumes:
-      - ../files/etc/pgcat.toml:/etc/pgcat.toml:ro
+      - ../../files/etc/pgcat.toml:/etc/pgcat.toml:ro
     networks: [internal]
 
   postgrest:
