@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Simple helper to generate strong secrets and pgCat MD5.
+# Simple helper to generate strong secrets and pgCat config hints.
 # Usage:
 #   ./infra/scripts/generate-secrets.sh [DB_APP_USER]
 # Defaults:
@@ -63,6 +63,9 @@ PGADMIN_PASSWORD=${PGADMIN_PASSWORD}
 PGCAT_ADMIN_USER=${PGCAT_ADMIN_USER}
 PGCAT_ADMIN_PASSWORD=${PGCAT_ADMIN_PASSWORD}
 
+# pgCat image (latest v1.x uses minimal config schema)
+PGCAT_IMAGE=ghcr.io/postgresml/pgcat:latest
+
 # Domains (example placeholders)
 DOMAIN_API=api.internal.example.com
 DOMAIN_GQL=gql.internal.example.com
@@ -76,24 +79,32 @@ PROXY_NETWORK=dokploy-network
 # MINIO_MC_IMAGE=minio/mc:RELEASE.2025-04-22T22-12-26Z
 # -----------------------------------------------------------
 
-# pgCat (minimal) config snippet — copy to your mounted /etc/pgcat.toml
+# pgCat (0.2.5 minimal) config snippet — copy to your mounted /etc/pgcat.toml
 #
 #[general]
 #host = "0.0.0.0"
 #port = 6432
 #admin_username = "${PGCAT_ADMIN_USER}"
 #admin_password = "${PGCAT_ADMIN_PASSWORD}"
+#workers = 4
+#idle_timeout = 600
+#connect_timeout = 5
+#ban_time = 60
+#
+#[pools.${POSTGRES_DB}]
+#pool_mode = "session"
+#default_role = "primary"
 #
 #[pools.${POSTGRES_DB}.users.0]
 #username = "${DB_APP_USER}"
 #password = "${DB_APP_PASS}"
 #pool_size = 20
 #min_pool_size = 1
-#pool_mode = "session"
 #
 #[pools.${POSTGRES_DB}.shards.0]
 #servers = [["postgres", 5432, "primary"]]
 #database = "${POSTGRES_DB}"
+
 EOF
 
 echo "\nGenerated secrets. Above is a ready-to-paste .env snippet and a pgCat config snippet." >&2

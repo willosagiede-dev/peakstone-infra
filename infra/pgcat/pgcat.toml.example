@@ -3,17 +3,29 @@
 
 [general]
 host = "0.0.0.0"
-port = 6432                         # keep in sync with compose
+port = 6432
 admin_username = "pgcat"
 admin_password = "change-this-strong"
 
+# Optional hardening
+workers = 4                 # number of worker threads
+idle_timeout = 600          # seconds
+connect_timeout = 5         # seconds
+ban_time = 60               # seconds; how long to ban a bad server
+
+# Pool name matches DB clients connect to
+[pools.peakstone]
+pool_mode = "session"       # Hasura needs session; PostgREST can use transaction if you run a second pgcat
+default_role = "primary"    # route to primary by default
+
 [pools.peakstone.users.0]
-username = "app_user"               # replace with DB_APP_USER
-password = "appsecret"              # replace with DB_APP_PASS
+username = "app_user"       # replace with DB_APP_USER
+password = "appsecret"      # replace with DB_APP_PASS
 pool_size = 20
 min_pool_size = 1
-pool_mode = "session"              # Hasura needs session; PostgREST is fine with prepared off
 
 [pools.peakstone.shards.0]
-servers = [["postgres", 5432, "primary"]]  # service name inside internal network
-database = "peakstone"                        # replace with POSTGRES_DB
+database = "peakstone"       # replace with POSTGRES_DB
+servers = [
+  ["postgres", 5432, "primary"]  # Docker service name + port
+]

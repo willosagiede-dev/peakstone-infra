@@ -36,9 +36,9 @@ Populate `infra/.env.example` (copy to `infra/.env`) with strong values:
 - PGADMIN_EMAIL / PGADMIN_PASSWORD: real email + strong password
  - pgCat admin: choose `PGCAT_ADMIN_USER` and a strong `PGCAT_ADMIN_PASSWORD` (used to secure pgCat admin APIs)
 
-### pgCat config (minimal)
+### pgCat config (0.2.5 minimal)
 
-Use the minimal config format (v1.2.0) and mount it to `/etc/pgcat.toml`. The pool name must match your database (e.g., `peakstone`). Passwords are plain: use `DB_APP_USER` and `DB_APP_PASS` you generated.
+Mount a minimal config to `/etc/pgcat.toml`. The pool name must match your database (e.g., `peakstone`). Passwords are plain (use `DB_APP_USER` and `DB_APP_PASS`).
 
 Example:
 
@@ -49,24 +49,30 @@ port = 6432
 admin_username = "pgcat"
 admin_password = "change-this-strong"
 
+[pools.peakstone]
+pool_mode = "session"
+default_role = "primary"
+
 [pools.peakstone.users.0]
 username = "app_user"
 password = "appsecret"
 pool_size = 20
 min_pool_size = 1
-pool_mode = "session"
 
 [pools.peakstone.shards.0]
-servers = [["postgres", 5432, "primary"]]
 database = "peakstone"
+servers = [["postgres", 5432, "primary"]]
 ```
 
-Pinning pgCat image
-- Compose now accepts `PGCAT_IMAGE`. To pin to a stable tag (e.g., v0.2.5):
-  - Set in `infra/.env`: `PGCAT_IMAGE=ghcr.io/postgresml/pgcat:v0.2.5`
-  - Note: Confirm the tag exists in the registry you’re pulling from.
+Notes:
+- Ensure the pool section key matches your database name (e.g., `peakstone`).
 
-Common pitfalls
+Pinning pgCat image
+- Compose accepts `PGCAT_IMAGE`. To pin to a stable tag (e.g., v0.2.5):
+  - Set in `infra/.env`: `PGCAT_IMAGE=ghcr.io/postgresml/pgcat:v0.2.5` (or `:latest`)
+  - Confirm the tag exists in the registry you’re pulling from.
+
+- Common pitfalls
 - If pgCat logs show it tries `127.0.0.1` or `database = "postgres"`, update your mounted `/etc/pgcat.toml`:
   - Use `servers = [["postgres", 5432, "primary"]]` (the Docker service name on the internal network)
   - Set `database = "${POSTGRES_DB}"` (e.g., `peakstone`)
@@ -105,7 +111,7 @@ You can generate a complete .env snippet and the pgCat MD5 with:
 It prints:
 - Ready-to-paste env lines for `infra/.env`
 - pgCat admin credentials
-- A ready-to-copy pgCat minimal config snippet
+- A ready-to-copy pgCat (0.2.5 minimal) config snippet
 
 ## Notes
 
