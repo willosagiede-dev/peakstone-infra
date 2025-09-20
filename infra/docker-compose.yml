@@ -54,15 +54,15 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     entrypoint: ["/bin/sh","-lc"]
     command: >
-      'until pg_isready -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB}; do sleep 1; done &&
-       psql -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "
-       DO \$\$
-       BEGIN
-         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ''${DB_APP_USER}'') THEN
-           EXECUTE format(''CREATE ROLE %I NOINHERIT LOGIN PASSWORD %L'', ''${DB_APP_USER}'', ''${DB_APP_PASS}'');
-         END IF;
-       END\$\$;
-       "'
+      until pg_isready -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB}; do sleep 1; done &&
+      printf "%s\n" \
+        "DO $$" \
+        "BEGIN" \
+        "  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_APP_USER}') THEN" \
+        "    EXECUTE format('CREATE ROLE %I NOINHERIT LOGIN PASSWORD %L', '${DB_APP_USER}', '${DB_APP_PASS}');" \
+        "  END IF;" \
+        "END$$;" \
+      | psql -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1
     restart: "no"
     networks: [internal]
 
