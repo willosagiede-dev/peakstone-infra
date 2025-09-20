@@ -34,9 +34,32 @@ Populate `infra/.env.example` (copy to `infra/.env`) with strong values:
 - IMGPROXY_KEY_HEX: 32-byte hex (64 hex chars)
 - IMGPROXY_SALT_HEX: 16-byte hex (32 hex chars)
 - PGADMIN_EMAIL / PGADMIN_PASSWORD: real email + strong password
+ - pgCat admin: choose `PGCAT_ADMIN_USER` and a strong `PGCAT_ADMIN_PASSWORD` (used to secure pgCat admin APIs)
 
-pgCat needs the Postgres MD5 hash form for the `app_user` password in `infra/pgcat/pgcat.toml`:
-- Format is `md5` + MD5(DB_APP_PASS + DB_APP_USER)
+### pgCat config (minimal)
+
+Use the minimal config format (v1.2.0) and mount it to `/etc/pgcat.toml`. The pool name must match your database (e.g., `peakstone`). Passwords are plain: use `DB_APP_USER` and `DB_APP_PASS` you generated.
+
+Example:
+
+```
+[general]
+host = "0.0.0.0"
+port = 6432
+admin_username = "pgcat"
+admin_password = "change-this-strong"
+
+[pools.peakstone.users.0]
+username = "app_user"
+password = "appsecret"
+pool_size = 20
+min_pool_size = 1
+pool_mode = "session"
+
+[pools.peakstone.shards.0]
+servers = [["postgres", 5432, "primary"]]
+database = "peakstone"
+```
 
 ### Generate examples
 
@@ -69,8 +92,9 @@ You can generate a complete .env snippet and the pgCat MD5 with:
 
 
 It prints:
-- Ready-to-paste env lines for infra/.env
-- The pgCat md5 password for both pools
+- Ready-to-paste env lines for `infra/.env`
+- pgCat admin credentials
+- A ready-to-copy pgCat minimal config snippet
 
 ## Notes
 

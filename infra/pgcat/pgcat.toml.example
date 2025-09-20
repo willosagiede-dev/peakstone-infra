@@ -1,34 +1,19 @@
+### Minimal pgCat config (v1.2.0) tailored for this stack
+### Pool name MUST match the DB you connect to (POSTGRES_DB)
+
 [general]
 host = "0.0.0.0"
-port = 6432
-log_level = "info"
+port = 6432                         # keep in sync with compose
+admin_username = "pgcat"
+admin_password = "change-this-strong"
 
-# Transaction pool for PostgREST (disable prepared statements there)
-[pools.peakstone_tx]
-pool_mode = "transaction"
-default_role = "primary"
-query_parser_enabled = false
+[pools.peakstone.users.0]
+username = "app_user"               # replace with DB_APP_USER
+password = "appsecret"              # replace with DB_APP_PASS
+pool_size = 20
+min_pool_size = 1
+pool_mode = "session"              # Hasura needs session; PostgREST is fine with prepared off
 
-[pools.peakstone_tx.users."app_user"]
-# Replace with md5(password + username), prefixed with "md5"
-password = "md5__FILL_ME__"
-
-# Session pool for Hasura (keeps prepared statements)
-[pools.peakstone_session]
-pool_mode = "session"
-default_role = "primary"
-query_parser_enabled = false
-
-[pools.peakstone_session.users."app_user"]
-password = "md5__FILL_ME__"
-
-# Primary server (add replicas later)
-[[pools.peakstone_tx.servers]]
-host = "postgres"
-port = 5432
-role = "primary"
-
-[[pools.peakstone_session.servers]]
-host = "postgres"
-port = 5432
-role = "primary"
+[pools.peakstone.shards.0]
+servers = [["postgres", 5432, "primary"]]  # service name inside internal network
+database = "peakstone"                        # replace with POSTGRES_DB
