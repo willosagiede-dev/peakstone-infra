@@ -135,7 +135,7 @@ services:
     networks: [internal, proxy]
 
   minio:
-    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     container_name: ps-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

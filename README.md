@@ -84,6 +84,7 @@ It prints:
 - MinIO client image (mc)
   - `minio-init` uses `${MINIO_MC_IMAGE}`; default is `minio/mc:latest`.
   - If you want to pin, set `MINIO_MC_IMAGE` in `infra/.env` to a valid tag from the mc repository (e.g., `minio/mc:RELEASE.<date>` that actually exists).
+  - MinIO server image is set via `MINIO_IMAGE` (default `minio/minio:latest`). Pin this to a specific release if you need a known console version.
 
 - imgproxy allowed sources
   - Set `IMGPROXY_ALLOWED_SOURCES` in `infra/.env` to a comma‑separated list of URL prefixes that imgproxy is allowed to fetch from.
