@@ -74,7 +74,7 @@ services:
         condition: service_healthy
       db-bootstrap:
         condition: service_completed_successfully
-    command: ["pgcat", "-c", "/etc/pgcat.toml"]
+    command: ["pgcat", "/etc/pgcat.toml"]
     volumes:
       - ./pgcat/pgcat.toml:/etc/pgcat.toml:ro
     networks: [internal]
@@ -89,7 +89,7 @@ services:
       pgcat:
         condition: service_started
     environment:
-      PGRST_DB_URI: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}?pool=peakstone_tx
+      PGRST_DB_URI: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_DB_SCHEMAS: public,common,people,pipeline,activities,leads,docs
       PGRST_JWT_SECRET: ${JWT_SECRET}
@@ -115,7 +115,7 @@ services:
       pgcat:
         condition: service_started
     environment:
-      HASURA_GRAPHQL_DATABASE_URL: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}?pool=peakstone_session
+      HASURA_GRAPHQL_DATABASE_URL: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: web_anon
       HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
