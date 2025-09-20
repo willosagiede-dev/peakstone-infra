@@ -1,10 +1,10 @@
 # Compose Spec (no version key)
-# networks:
-#   internal:
-#     driver: overlay
-#   proxy:
-#     external: true   # set to your Dokploy Traefik network
-#     name: ${PROXY_NETWORK:-dokploy-network}
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true   # set to your Dokploy Traefik network
+    name: ${PROXY_NETWORK:-dokploy-network}
 
 volumes:
   pg_data:
@@ -32,7 +32,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
-    # networks: [internal]
+    networks: [internal]
     healthcheck:
       test: [ "CMD", "pg_isready", "-q", "-U", "${POSTGRES_SUPERUSER}", "-d", "${POSTGRES_DB}", "-h", "localhost" ]
       interval: 10s
@@ -63,7 +63,7 @@ services:
       done
       psql -h postgres -U ${POSTGRES_SUPERUSER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "DO $$$$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_APP_USER}') THEN EXECUTE format('CREATE ROLE %I NOINHERIT LOGIN PASSWORD %L', '${DB_APP_USER}', '${DB_APP_PASS}'); ELSE EXECUTE format('ALTER ROLE %I WITH PASSWORD %L', '${DB_APP_USER}', '${DB_APP_PASS}'); END IF; END $$$$;"
     restart: "no"
-    # networks: [internal]
+    networks: [internal]
 
   pgcat:
     image: ${PGCAT_IMAGE:-ghcr.io/postgresml/pgcat:latest}
@@ -77,7 +77,7 @@ services:
     command: ["pgcat", "/etc/pgcat.toml"]
     volumes:
       - ../../files/etc/pgcat.toml:/etc/pgcat.toml:ro
-    # networks: [internal]
+    networks: [internal]
 
   postgrest:
     image: postgrest/postgrest:v12.2.3
@@ -103,7 +103,7 @@ services:
       - traefik.http.routers.postgrest.entrypoints=websecure
       - traefik.http.routers.postgrest.tls=true
       - traefik.http.services.postgrest.loadbalancer.server.port=3000
-    # networks: [internal, proxy]
+    networks: [internal, proxy]
 
   hasura:
     image: hasura/graphql-engine:v2.40.0-ce
@@ -131,7 +131,7 @@ services:
       - traefik.http.routers.hasura.entrypoints=websecure
       - traefik.http.routers.hasura.tls=true
       - traefik.http.services.hasura.loadbalancer.server.port=8080
-    # networks: [internal, proxy]
+    networks: [internal, proxy]
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
@@ -154,7 +154,7 @@ services:
       - traefik.http.routers.minio-console.entrypoints=websecure
       - traefik.http.routers.minio-console.tls=true
       - traefik.http.services.minio-console.loadbalancer.server.port=9001
-    # networks: [internal, proxy]
+    networks: [internal, proxy]
 
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
@@ -174,7 +174,7 @@ services:
       - traefik.http.routers.imgproxy.entrypoints=websecure
       - traefik.http.routers.imgproxy.tls=true
       - traefik.http.services.imgproxy.loadbalancer.server.port=8080
-    # networks: [internal, proxy]
+    networks: [internal, proxy]
 
   # One-off MinIO bootstrap: creates bucket + policy
   minio-init:
@@ -194,7 +194,7 @@ services:
       S3_APP_SECRET_KEY: ${S3_APP_SECRET_KEY}
     volumes:
       - ./minio/init:/init:ro
-    # networks: [internal]
+    networks: [internal]
 
   pgadmin:
     image: dpage/pgadmin4:8.12
@@ -213,4 +213,4 @@ services:
       - traefik.http.routers.pgadmin.entrypoints=websecure
       - traefik.http.routers.pgadmin.tls=true
       - traefik.http.services.pgadmin.loadbalancer.server.port=80
-    # networks: [internal, proxy]
+    networks: [internal, proxy]
