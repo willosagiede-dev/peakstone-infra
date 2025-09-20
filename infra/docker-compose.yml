@@ -1,7 +1,7 @@
 networks:
   internal:
-    external: true
-    name: peakstone-internal
+    driver: overlay
+    attachable: true
   proxy:
     external: true   # set to your Dokploy Traefik network
     name: ${PROXY_NETWORK:-dokploy-network}
