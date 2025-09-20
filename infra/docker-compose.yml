@@ -1,7 +1,7 @@
-# Compose Spec (no version key)
 networks:
   internal:
-    driver: bridge
+    external: true
+    name: peakstone-internal
   proxy:
     external: true   # set to your Dokploy Traefik network
     name: ${PROXY_NETWORK:-dokploy-network}
