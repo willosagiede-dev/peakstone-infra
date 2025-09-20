@@ -34,11 +34,11 @@ services:
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     networks: [internal]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_SUPERUSER} -d $${POSTGRES_DB} || exit 1"]
+      test: [ "CMD", "pg_isready", "-q", "-U", "${POSTGRES_SUPERUSER}", "-d", "${POSTGRES_DB}", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 60s
+      retries: 18
+      start_period: 90s
 
   # One-off DB bootstrap: create app_user (idempotent) using env secrets
   db-bootstrap:
