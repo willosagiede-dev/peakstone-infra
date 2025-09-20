@@ -66,7 +66,7 @@ services:
     networks: [internal]
 
   pgcat:
-    image: ghcr.io/postgresml/pgcat:latest
+    image: ${PGCAT_IMAGE:-ghcr.io/postgresml/pgcat:latest}
     container_name: ps-pgcat
     restart: unless-stopped
     depends_on:

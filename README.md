@@ -61,6 +61,17 @@ servers = [["postgres", 5432, "primary"]]
 database = "peakstone"
 ```
 
+Pinning pgCat image
+- Compose now accepts `PGCAT_IMAGE`. To pin to a stable tag (e.g., v0.2.5):
+  - Set in `infra/.env`: `PGCAT_IMAGE=ghcr.io/postgresml/pgcat:v0.2.5`
+  - Note: Confirm the tag exists in the registry you’re pulling from.
+
+Common pitfalls
+- If pgCat logs show it tries `127.0.0.1` or `database = "postgres"`, update your mounted `/etc/pgcat.toml`:
+  - Use `servers = [["postgres", 5432, "primary"]]` (the Docker service name on the internal network)
+  - Set `database = "${POSTGRES_DB}"` (e.g., `peakstone`)
+  - Ensure `username`/`password` match `DB_APP_USER`/`DB_APP_PASS`
+
 ### Generate examples
 
 # 32 bytes hex (JWT, Hasura)
