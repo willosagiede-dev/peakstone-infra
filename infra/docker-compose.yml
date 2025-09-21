@@ -11,7 +11,7 @@ volumes:
 services:
   postgres:
     image: ${POSTGRES_IMAGE}
-    container_name: ps-postgres
+    container_name: postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -64,8 +64,11 @@ services:
 
   pgcat:
     image: ${PGCAT_IMAGE:-ghcr.io/postgresml/pgcat:latest}
-    container_name: ps-pgcat
+    container_name: pgcat
     restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:5432/${POSTGRES_DB}
+      PGCAT_LISTEN_ADDR: "0.0.0.0:6432"
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,7 +81,7 @@ services:
 
   postgrest:
     image: postgrest/postgrest:v12.2.3
-    container_name: ps-postgrest
+    container_name: postgrest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -104,7 +107,7 @@ services:
 
   hasura:
     image: hasura/graphql-engine:v2.40.0-ce
-    container_name: ps-hasura
+    container_name: hasura
     restart: unless-stopped
     depends_on:
       postgres:
@@ -132,7 +135,7 @@ services:
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
-    container_name: ps-minio
+    container_name: minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -155,7 +158,7 @@ services:
 
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
-    container_name: ps-imgproxy
+    container_name: imgproxy
     restart: unless-stopped
     environment:
       IMGPROXY_KEY: ${IMGPROXY_KEY_HEX}
@@ -176,7 +179,7 @@ services:
   # One-off MinIO bootstrap: creates bucket + policy
   minio-init:
     image: ${MINIO_MC_IMAGE:-minio/mc:latest}
-    container_name: ps-minio-init
+    container_name: minio-init
     depends_on:
       minio:
         condition: service_started
@@ -195,7 +198,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:8.12
-    container_name: ps-pgadmin
+    container_name: pgadmin
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
