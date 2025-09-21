@@ -2,8 +2,21 @@
 
 volumes:
   pg_data:
+    name: peakstone_pg_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PG_DATA_HOST_DIR:-/var/lib/peakstone/pgdata}
   pgadmin_data:
+    name: peakstone_pgadmin_data
   minio_data:
+    name: peakstone_minio_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MINIO_DATA_HOST_DIR:-/var/lib/peakstone/minio}
 
 services:
   postgres:
