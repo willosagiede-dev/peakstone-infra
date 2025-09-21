@@ -68,9 +68,12 @@ services:
     image: ${PGCAT_IMAGE:-ghcr.io/postgresml/pgcat:latest}
     container_name: pgcat
     restart: unless-stopped
-    # environment:
-    #   DATABASE_URL: postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@postgres:5432/${POSTGRES_DB}
-    #   PGCAT_LISTEN_ADDR: "0.0.0.0:6432"
+    ports:
+      - "5432:5432"
+      - "6432:6432"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@postgres:5432/${POSTGRES_DB}
+      PGCAT_LISTEN_ADDR: "0.0.0.0:6432"
     depends_on:
       postgres:
         condition: service_healthy
@@ -202,9 +205,6 @@ services:
     image: dpage/pgadmin4:8.12
     container_name: pgadmin
     restart: unless-stopped
-    ports:
-      - "5432:5432"
-      - "6432:6432"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
