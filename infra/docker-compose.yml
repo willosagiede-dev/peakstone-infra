@@ -115,7 +115,7 @@ services:
       pgcat:
         condition: service_started
     environment:
-      HASURA_GRAPHQL_DATABASE_URL: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}
+      HASURA_GRAPHQL_DATABASE_URL: postgres://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@pgcat:6432/${POSTGRES_DB}
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: web_anon
       HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
