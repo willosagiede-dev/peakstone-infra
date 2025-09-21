@@ -49,6 +49,12 @@ services:
     command: ["pgcat", "/etc/pgcat.toml"]
     volumes:
       - ../files/etc/pgcat.toml:/etc/pgcat.toml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 6432 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   postgrest:
     image: postgrest/postgrest:v12.2.3
