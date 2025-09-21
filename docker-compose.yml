@@ -50,7 +50,7 @@ services:
     volumes:
       - ../files/etc/pgcat.toml:/etc/pgcat.toml:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 6432 || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6432' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +75,7 @@ services:
       PGRST_OPENAPI_SERVER_PROXY_URI: https://${DOMAIN_API}
     # no Traefik labels; routing managed by Dokploy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/ >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -91,7 +91,7 @@ services:
       pgcat:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/healthz >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -104,6 +104,7 @@ services:
       HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log,websocket-log,query-log
       HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: "true"
       HASURA_GRAPHQL_CORS_DOMAIN: ${HASURA_CORS}
+      HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
       HASURA_GRAPHQL_JWT_SECRET: >
         {"type":"HS256","key":"${JWT_SECRET}","claims_namespace_path":"$","claims_format":"json"}
     # no Traefik labels; routing managed by Dokploy
@@ -119,7 +120,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:9000/minio/health/live >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
