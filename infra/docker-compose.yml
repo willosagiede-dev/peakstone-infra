@@ -13,8 +13,8 @@ services:
     image: ${POSTGRES_IMAGE}
     container_name: postgres
     restart: unless-stopped
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
@@ -69,7 +69,6 @@ services:
     container_name: pgcat
     restart: unless-stopped
     ports:
-      - "5432:5432"
       - "6432:6432"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@postgres:5432/${POSTGRES_DB}
