@@ -67,7 +67,7 @@ services:
     container_name: pgcat
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${DB_APP_USER}:${DB_APP_PASS}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@postgres:5432/${POSTGRES_DB}
       PGCAT_LISTEN_ADDR: "0.0.0.0:6432"
     depends_on:
       postgres:
@@ -89,7 +89,7 @@ services:
       pgcat:
         condition: service_started
     environment:
-      PGRST_DB_URI: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:6432/${POSTGRES_DB}
+      PGRST_DB_URI: postgres://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@pgcat:6432/${POSTGRES_DB}
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_DB_SCHEMAS: public,common,people,pipeline,activities,leads,docs
       PGRST_JWT_SECRET: ${JWT_SECRET}
