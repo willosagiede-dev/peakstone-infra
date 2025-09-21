@@ -67,7 +67,7 @@ services:
     container_name: pgcat
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${DB_APP_USER}:${DB_APP_PASS}@pgcat:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${DB_APP_USER}:${DB_APP_PASS}@postgres:5432/${POSTGRES_DB}
       PGCAT_LISTEN_ADDR: "0.0.0.0:6432"
     depends_on:
       postgres:
