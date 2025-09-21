@@ -13,8 +13,8 @@ services:
     image: ${POSTGRES_IMAGE}
     container_name: postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
@@ -202,6 +202,9 @@ services:
     image: dpage/pgadmin4:8.12
     container_name: pgadmin
     restart: unless-stopped
+    ports:
+      - "5432:5432"
+      - "6432:6432"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
