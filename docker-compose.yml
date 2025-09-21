@@ -67,13 +67,13 @@ services:
       PGRST_ROLE_CLAIM_KEY: .role
       PGRST_DB_PREPARED_STATEMENTS: "false"
       PGRST_OPENAPI_SERVER_PROXY_URI: https://${DOMAIN_API}
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.postgrest.rule=Host(`${DOMAIN_API}`)
-      - traefik.http.routers.postgrest.entrypoints=websecure
-      - traefik.http.routers.postgrest.tls=true
-      - traefik.http.services.postgrest.loadbalancer.server.port=3000
+    # no Traefik labels; routing managed by Dokploy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   hasura:
     image: hasura/graphql-engine:v2.40.0-ce
@@ -84,6 +84,12 @@ services:
         condition: service_healthy
       pgcat:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       HASURA_GRAPHQL_DATABASE_URL: postgres://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@pgcat:6432/${POSTGRES_DB}
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
@@ -94,13 +100,7 @@ services:
       HASURA_GRAPHQL_CORS_DOMAIN: ${HASURA_CORS}
       HASURA_GRAPHQL_JWT_SECRET: >
         {"type":"HS256","key":"${JWT_SECRET}","claims_namespace_path":"$","claims_format":"json"}
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.hasura.rule=Host(`${DOMAIN_GQL}`)
-      - traefik.http.routers.hasura.entrypoints=websecure
-      - traefik.http.routers.hasura.tls=true
-      - traefik.http.services.hasura.loadbalancer.server.port=8080
+    # no Traefik labels; routing managed by Dokploy
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
@@ -112,17 +112,12 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASS}
     volumes:
       - minio_data:/data
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.minio-api.rule=Host(`${DOMAIN_FILES}`)
-      - traefik.http.routers.minio-api.entrypoints=websecure
-      - traefik.http.routers.minio-api.tls=true
-      - traefik.http.services.minio-api.loadbalancer.server.port=9000
-      - traefik.http.routers.minio-console.rule=Host(`${DOMAIN_MINIO_CONSOLE}`)
-      - traefik.http.routers.minio-console.entrypoints=websecure
-      - traefik.http.routers.minio-console.tls=true
-      - traefik.http.services.minio-console.loadbalancer.server.port=9001
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:9000/minio/health/live >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # no Traefik labels; routing managed by Dokploy
 
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
@@ -135,13 +130,13 @@ services:
       IMGPROXY_ALLOWED_SOURCES: ${IMGPROXY_ALLOWED_SOURCES}
       IMGPROXY_ENABLE_WEBP_DETECTION: "true"
       IMGPROXY_MAX_SRC_RESOLUTION: "80"
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
-      - traefik.http.routers.imgproxy.entrypoints=websecure
-      - traefik.http.routers.imgproxy.tls=true
-      - traefik.http.services.imgproxy.loadbalancer.server.port=8080
+    healthcheck:
+      test: ["CMD", "imgproxy", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    # no Traefik labels; routing managed by Dokploy
 
   # One-off MinIO bootstrap: creates bucket + policy
   minio-init:
@@ -172,10 +167,10 @@ services:
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
-      - traefik.http.routers.pgadmin.entrypoints=websecure
-      - traefik.http.routers.pgadmin.tls=true
-      - traefik.http.services.pgadmin.loadbalancer.server.port=80
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost/misc/ping >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    # no Traefik labels; routing managed by Dokploy
