@@ -5,10 +5,10 @@ set -euo pipefail
 # Requires Docker CLI and network access to pull/inspect images.
 #
 # Usage:
-#   ./infra/scripts/pin-images.sh
-#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.pinned.yml up -d
+#   ./scripts/pin-images.sh
+#   docker compose -f docker-compose.yml -f docker-compose.pinned.yml up -d
 
-OUT_FILE="infra/docker-compose.pinned.yml"
+OUT_FILE="docker-compose.pinned.yml"
 
 # Service->image mapping. Note: postgres is built locally, so skip pinning here.
 declare -A IMAGES=(

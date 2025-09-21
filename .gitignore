@@ -18,8 +18,8 @@ build/
 **/.env.*
 !**/.env.example
 
-# explicitly ignore app env
-/infra/.env
+# explicitly ignore app env at root
+/.env
 
 # pgCat config with secrets (keep example tracked)
-/infra/pgcat/pgcat.toml
+/pgcat/pgcat.toml

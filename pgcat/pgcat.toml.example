@@ -1,4 +1,4 @@
-### Minimal pgCat config (v1.2.0) tailored for this stack
+### Minimal pgCat config (0.2.5) tailored for this stack
 ### Pool name MUST match the DB you connect to (POSTGRES_DB)
 
 [general]
@@ -19,8 +19,8 @@ pool_mode = "session"       # Hasura needs session; PostgREST can use transactio
 default_role = "primary"    # route to primary by default
 
 [pools.peakstone.users.0]
-username = "app_user"       # replace with DB_APP_USER
-password = "appsecret"      # replace with DB_APP_PASS
+username = "postgres"       # replace with POSTGRES_SUPERUSER if different
+password = "<POSTGRES_SUPERPASS>"  # replace with your superuser password
 pool_size = 20
 min_pool_size = 1
 

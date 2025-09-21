@@ -3,11 +3,7 @@ set -euo pipefail
 
 # Simple helper to generate strong secrets and pgCat config hints.
 # Usage:
-#   ./infra/scripts/generate-secrets.sh [DB_APP_USER]
-# Defaults:
-#   DB_APP_USER=app_user
-
-DB_APP_USER=${1:-app_user}
+#   ./scripts/generate-secrets.sh
 # Defaults for variables referenced in the template (avoid nounset errors)
 POSTGRES_DB=${POSTGRES_DB:-peakstone}
 POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER:-postgres}
@@ -17,7 +13,6 @@ rand_hex() { openssl rand -hex "$1"; }
 
 # Generate values
 POSTGRES_SUPERPASS=$(rand_b64 24)
-DB_APP_PASS=$(rand_b64 24)
 JWT_SECRET=$(rand_hex 32)          # 32 bytes hex
 HASURA_ADMIN_SECRET=$(rand_hex 32) # 32 bytes hex
 MINIO_ROOT_PASS=$(rand_b64 24)
@@ -31,14 +26,11 @@ PGCAT_ADMIN_USER=${PGCAT_ADMIN_USER:-pgcat}
 PGCAT_ADMIN_PASSWORD=$(rand_b64 24)
 
 cat <<EOF
-# ---- Copy/paste into infra/.env (adjust emails/domains) ----
+# ---- Copy/paste into .env (adjust emails/domains) ----
 POSTGRES_DB=peakstone
 POSTGRES_SUPERUSER=postgres
 POSTGRES_SUPERPASS=${POSTGRES_SUPERPASS}
 TZ=UTC
-
-DB_APP_USER=${DB_APP_USER}
-DB_APP_PASS=${DB_APP_PASS}
 
 JWT_SECRET=${JWT_SECRET}
 HASURA_ADMIN_SECRET=${HASURA_ADMIN_SECRET}
@@ -96,8 +88,8 @@ PROXY_NETWORK=dokploy-network
 #default_role = "primary"
 #
 #[pools.${POSTGRES_DB}.users.0]
-#username = "${DB_APP_USER}"
-#password = "${DB_APP_PASS}"
+#username = "${POSTGRES_SUPERUSER}"
+#password = "${POSTGRES_SUPERPASS}"
 #pool_size = 20
 #min_pool_size = 1
 #
