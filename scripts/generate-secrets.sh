@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/generate-secrets.sh
 # Defaults for variables referenced in the template (avoid nounset errors)
-POSTGRES_DB=${POSTGRES_DB:-peakstone}
+POSTGRES_DB=${POSTGRES_DB:-postgres}
 POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER:-postgres}
 
 rand_b64() { openssl rand -base64 "$1"; }
@@ -27,7 +27,7 @@ PGCAT_ADMIN_PASSWORD=$(rand_b64 24)
 
 cat <<EOF
 # ---- Copy/paste into .env (adjust emails/domains) ----
-POSTGRES_DB=peakstone
+POSTGRES_DB=postgres
 POSTGRES_SUPERUSER=postgres
 POSTGRES_SUPERPASS=${POSTGRES_SUPERPASS}
 TZ=UTC

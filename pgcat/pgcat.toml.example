@@ -14,18 +14,18 @@ connect_timeout = 5         # seconds
 ban_time = 60               # seconds; how long to ban a bad server
 
 # Pool name matches DB clients connect to
-[pools.peakstone]
+[pools.postgres]
 pool_mode = "session"       # Hasura needs session; PostgREST can use transaction if you run a second pgcat
 default_role = "primary"    # route to primary by default
 
-[pools.peakstone.users.0]
+[pools.postgres.users.0]
 username = "postgres"       # replace with POSTGRES_SUPERUSER if different
 password = "<POSTGRES_SUPERPASS>"  # replace with your superuser password
 pool_size = 20
 min_pool_size = 1
 
-[pools.peakstone.shards.0]
-database = "peakstone"       # replace with POSTGRES_DB
+[pools.postgres.shards.0]
+database = "postgres"       # replace with POSTGRES_DB
 servers = [
   ["postgres", 5432, "primary"]  # Docker service name + port
 ]

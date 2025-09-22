@@ -37,7 +37,7 @@ Populate `.env.example` (copy to `.env`) with strong values:
 
 ### pgCat config (0.2.5 minimal)
 
-Mount a minimal config to `/etc/pgcat.toml`. The pool name must match your database (e.g., `peakstone`). Passwords are plain (this setup uses the Postgres superuser for simplicity).
+Mount a minimal config to `/etc/pgcat.toml`. The pool name must match your database (e.g., `postgres`). Passwords are plain (this setup uses the Postgres superuser for simplicity).
 
 Example:
 
@@ -48,23 +48,23 @@ port = 6432
 admin_username = "pgcat"
 admin_password = "change-this-strong"
 
-[pools.peakstone]
+[pools.postgres]
 pool_mode = "session"
 default_role = "primary"
 
-[pools.peakstone.users.0]
+[pools.postgres.users.0]
 username = "postgres"
 password = "<POSTGRES_SUPERPASS>"
 pool_size = 20
 min_pool_size = 1
 
-[pools.peakstone.shards.0]
-database = "peakstone"
+[pools.postgres.shards.0]
+database = "postgres"
 servers = [["postgres", 5432, "primary"]]
 ```
 
 Notes:
-- Ensure the pool section key matches your database name (e.g., `peakstone`).
+- Ensure the pool section key matches your database name (e.g., `postgres`).
 
 Pinning pgCat image
 - Compose accepts `PGCAT_IMAGE`. To pin to a stable tag (e.g., v0.2.5):
@@ -74,7 +74,7 @@ Pinning pgCat image
 - Common pitfalls
 - If pgCat logs show it tries `127.0.0.1` or `database = "postgres"`, update your mounted `/etc/pgcat.toml`:
   - Use `servers = [["postgres", 5432, "primary"]]` (the Docker service name on the internal network)
-  - Set `database = "${POSTGRES_DB}"` (e.g., `peakstone`)
+  - Set `database = "${POSTGRES_DB}"` (e.g., `postgres`)
   - Ensure `username`/`password` match `POSTGRES_SUPERUSER`/`POSTGRES_SUPERPASS`
 
 ### Generate examples
