@@ -162,8 +162,8 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
-    volumes:
-      - ../files/volumes/db/pgadmin:/var/lib/pgadmin
+    # volumes:
+    #   - ../files/volumes/db/pgadmin:/var/lib/pgadmin
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost/misc/ping >/dev/null 2>&1 || exit 1"]
       interval: 10s
