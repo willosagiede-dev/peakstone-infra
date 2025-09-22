@@ -1,23 +1,4 @@
  
-
-volumes:
-  pg_data:
-    name: peakstone_pg_data
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PG_DATA_HOST_DIR:-/var/lib/peakstone/pgdata}
-  pgadmin_data:
-    name: peakstone_pgadmin_data
-  minio_data:
-    name: peakstone_minio_data
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${MINIO_DATA_HOST_DIR:-/var/lib/peakstone/minio}
-
 services:
   postgres:
     image: ${POSTGRES_IMAGE}
@@ -39,7 +20,7 @@ services:
         -c cron.database_name=${POSTGRES_DB}
         -c max_wal_size=2GB
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ../files/volumes/db/data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD", "pg_isready", "-q", "-U", "${POSTGRES_SUPERUSER}", "-d", "${POSTGRES_DB}", "-h", "localhost" ]
@@ -61,7 +42,7 @@ services:
         condition: service_healthy
     command: ["pgcat", "/etc/pgcat.toml"]
     volumes:
-      - ../files/etc/pgcat.toml:/etc/pgcat.toml:ro
+      - ../files/volumes/pgcat.toml:/etc/pgcat.toml:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6432' || exit 1"]
       interval: 10s
@@ -126,7 +107,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASS}
     volumes:
-      - minio_data:/data
+      - ../files/volumes/storage/minio_data:/data
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 30s
@@ -161,6 +142,7 @@ services:
       minio:
         condition: service_started
     entrypoint: ["/bin/sh","/init/minio-init.sh"]
+    restart: "no"
     environment:
       MINIO_ALIAS: ${MINIO_ALIAS:-minio}
       MINIO_ENDPOINT: http://minio:9000
@@ -181,7 +163,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - ../files/volumes/db/pgadmin:/var/lib/pgadmin
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost/misc/ping >/dev/null 2>&1 || exit 1"]
       interval: 10s
