@@ -108,6 +108,9 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASS}
     volumes:
       - ${MINIO_DATA_HOST_DIR:-../files/volumes/storage/minio_data}:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 30s
