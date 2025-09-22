@@ -11,8 +11,8 @@ echo "MinIO alias set."
 mc mb --ignore-existing "${MINIO_ALIAS}/${MINIO_BUCKET}"
 mc version enable "${MINIO_ALIAS}/${MINIO_BUCKET}"
 
-# Lifecycle rule (optional)
-mc ilm add --id clean-multipart --expiry-days 7 "${MINIO_ALIAS}/${MINIO_BUCKET}" || true
+# Lifecycle rule (optional): expire incomplete uploads/old objects after 7 days
+mc ilm add "${MINIO_ALIAS}/${MINIO_BUCKET}" --expire-days 7 || true
 
 # App user + policy
 if ! mc admin user info "${MINIO_ALIAS}" "${S3_APP_ACCESS_KEY}" >/dev/null 2>&1; then
@@ -20,7 +20,7 @@ if ! mc admin user info "${MINIO_ALIAS}" "${S3_APP_ACCESS_KEY}" >/dev/null 2>&1;
 fi
 
 # Create a policy dynamically for the configured bucket
-TMP_POLICY=/tmp/ps-app-policy.json
+TMP_POLICY=/tmp/app-policy.json
 cat > "$TMP_POLICY" <<EOF
 {
   "Version": "2012-10-17",
@@ -51,7 +51,8 @@ cat > "$TMP_POLICY" <<EOF
 }
 EOF
 
-mc admin policy create "${MINIO_ALIAS}" ps-app-policy "$TMP_POLICY" || true
-mc admin policy attach "${MINIO_ALIAS}" --user "${S3_APP_ACCESS_KEY}" --policy ps-app-policy || true
+mc admin policy create "${MINIO_ALIAS}" app-policy "$TMP_POLICY" || true
+# Attach policy to user (syntax without --policy per newer mc versions)
+mc admin policy attach "${MINIO_ALIAS}" --user "${S3_APP_ACCESS_KEY}" app-policy || true
 
 echo "MinIO bootstrap complete."
