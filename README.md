@@ -97,6 +97,8 @@ echo $IMGPROXY_SALT_HEX
 
 You can generate a complete .env snippet with:
 
+chmod +x scripts/generate-secrets.sh (if needed)
+
 ./scripts/generate-secrets.sh
 
 

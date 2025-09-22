@@ -20,7 +20,7 @@ services:
         -c cron.database_name=${POSTGRES_DB}
         -c max_wal_size=2GB
     volumes:
-      - ../files/volumes/db/data:/var/lib/postgresql/data
+      - ${PG_DATA_HOST_DIR:-../files/volumes/db/data}:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD", "pg_isready", "-q", "-U", "${POSTGRES_SUPERUSER}", "-d", "${POSTGRES_DB}", "-h", "localhost" ]
@@ -42,7 +42,7 @@ services:
         condition: service_healthy
     command: ["pgcat", "/etc/pgcat.toml"]
     volumes:
-      - ../files/volumes/pgcat.toml:/etc/pgcat.toml:ro
+      - ${PGCAT_CONFIG_PATH:-../files/volumes/pgcat.toml}:/etc/pgcat.toml:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6432' || exit 1"]
       interval: 10s
@@ -107,7 +107,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASS}
     volumes:
-      - ../files/volumes/storage/minio_data:/data
+      - ${MINIO_DATA_HOST_DIR:-../files/volumes/storage/minio_data}:/data
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 30s
@@ -162,8 +162,6 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
-    # volumes:
-    #   - ../files/volumes/db/pgadmin:/var/lib/pgadmin
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost/misc/ping >/dev/null 2>&1 || exit 1"]
       interval: 10s

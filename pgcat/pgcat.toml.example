@@ -8,10 +8,17 @@ admin_username = "pgcat"
 admin_password = "change-this-strong"
 
 # Optional hardening
-workers = 4                 # number of worker threads
-idle_timeout = 600          # seconds
-connect_timeout = 5         # seconds
-ban_time = 60               # seconds; how long to ban a bad server
+connect_timeout = 5000
+idle_timeout    = 30000
+healthcheck_timeout = 1000
+healthcheck_delay   = 30000
+ban_time = 60   # seconds; how long to ban a bad server
+worker_threads = 5  # number of worker threads
+autoreload = 15000
+
+tcp_keepalives_idle = 5
+tcp_keepalives_count = 5
+tcp_keepalives_interval = 5
 
 # Pool name matches DB clients connect to
 [pools.postgres]

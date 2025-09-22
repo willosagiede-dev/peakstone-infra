@@ -1,13 +1,11 @@
 #!/bin/sh
 set -e
 
-echo "Waiting for MinIO at ${MINIO_ENDPOINT}..."
-until (curl -s ${MINIO_ENDPOINT}/minio/health/ready >/dev/null 2>&1); do
+echo "Waiting for MinIO at ${MINIO_ENDPOINT} (alias set loop)..."
+until mc alias set "${MINIO_ALIAS}" "${MINIO_ENDPOINT}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASS}" >/dev/null 2>&1; do
   sleep 2
 done
-echo "MinIO ready."
-
-mc alias set "${MINIO_ALIAS}" "${MINIO_ENDPOINT}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASS}"
+echo "MinIO alias set."
 
 # Create bucket (idempotent) + versioning
 mc mb --ignore-existing "${MINIO_ALIAS}/${MINIO_BUCKET}"
