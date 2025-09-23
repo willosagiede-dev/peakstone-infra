@@ -30,6 +30,12 @@ IMGPROXY_KEY_HEX=$(rand_hex 32)    # 32 bytes hex -> 64 chars
 IMGPROXY_SALT_HEX=$(rand_hex 16)   # 16 bytes hex -> 32 chars
 PGADMIN_PASSWORD=$(rand_b64 24)
 
+# Logging / Grafana / Loki
+GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+GRAFANA_ADMIN_PASSWORD=$(rand_b64 24)
+LOKI_ACCESS_KEY=$(rand_hex 20)
+LOKI_SECRET_KEY=$(rand_b64 24)
+
 # pgCat admin (for /admin endpoint)
 PGCAT_ADMIN_USER=${PGCAT_ADMIN_USER:-pgcat}
 PGCAT_ADMIN_PASSWORD=$(rand_b64 24)
@@ -85,6 +91,16 @@ DOMAIN_FILES=s3.example.com
 DOMAIN_MINIO_CONSOLE=minio.example.com
 DOMAIN_IMG=img.example.com
 DOMAIN_PGADMIN=dbadmin.example.com
+DOMAIN_GRAFANA=grafana.example.com
+
+# Logging (Loki / Grafana)
+LOKI_ACCESS_KEY=${LOKI_ACCESS_KEY}
+LOKI_SECRET_KEY=${LOKI_SECRET_KEY}
+MINIO_ENDPOINT=minio:9000
+AWS_REGION=us-east-1
+GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
+GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+ENVIRONMENT=dev
 
 # -----------------------------------------------------------
 # Remove the section below from your .env
