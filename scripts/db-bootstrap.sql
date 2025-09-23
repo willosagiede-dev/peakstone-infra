@@ -40,6 +40,17 @@ ALTER ROLE db_authenticator WITH LOGIN PASSWORD :'DB_AUTHENTICATOR_PASSWORD';
 ALTER ROLE hasura WITH LOGIN PASSWORD :'HASURA_DB_PASSWORD';
 ALTER ROLE db_migrator WITH LOGIN PASSWORD :'DB_MIGRATOR_PASSWORD';
 
+-- Allow db_migrator to create schemas in this database (needed for Atlas revisions schema)
+DO $$
+BEGIN
+  EXECUTE format('GRANT CREATE, TEMPORARY ON DATABASE %I TO db_migrator;', current_database());
+END
+$$;
+
+-- Pre-create Atlas revision schemas (idempotent) and own them by db_migrator
+CREATE SCHEMA IF NOT EXISTS atlas_schema AUTHORIZATION db_migrator;
+CREATE SCHEMA IF NOT EXISTS atlas_schema_revisions AUTHORIZATION db_migrator;
+
 -- App auth pattern: authenticator can assume app_user and web_anon
 GRANT web_anon TO db_authenticator;
 GRANT app_user TO db_authenticator;
