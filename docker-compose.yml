@@ -259,12 +259,13 @@ services:
       db-bootstrap:
         condition: service_completed_successfully
     working_dir: /workspace/atlas
-    command: ["migrate", "apply", "--dir", "file://migrations", "--url", "${ATLAS_URL}"]
+    entrypoint: ["/bin/sh", "/scripts/run-atlas-migrate.sh"]
     restart: "no"
     environment:
       ATLAS_URL: ${ATLAS_URL}
     volumes:
       - ./atlas:/workspace/atlas:ro
+      - ./scripts:/scripts:ro
 
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
