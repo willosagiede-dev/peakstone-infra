@@ -1,0 +1,23 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "pgCat (App traffic)",
+      "Group": "PeakStone",
+      "Host": "pgcat",
+      "Port": 6432,
+      "MaintenanceDB": "postgres",
+      "Username": "db_authenticator",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "Postgres (Admin)",
+      "Group": "PeakStone",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    }
+  }
+}
+
