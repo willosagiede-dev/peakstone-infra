@@ -40,31 +40,62 @@ LOKI_SECRET_KEY=$(rand_b64 24)
 PGCAT_ADMIN_USER=${PGCAT_ADMIN_USER:-pgcat}
 PGCAT_ADMIN_PASSWORD=$(rand_b64 24)
 
+# DB app roles
+DB_AUTHENTICATOR_PASSWORD=$(rand_b64 24)
+HASURA_DB_PASSWORD=$(rand_b64 24)
+DB_MIGRATOR_PASSWORD=$(rand_b64 24)
+
 cat <<EOF
 # ---- Copy/paste into .env (adjust emails/domains) and copy pgcat config below to your mounted /etc/pgcat.toml ----
 
-# Postgres
+# --- Postgres Database ---
 POSTGRES_DB=postgres
 POSTGRES_SUPERUSER=postgres
 POSTGRES_SUPERPASS=${POSTGRES_SUPERPASS}
 TZ=UTC # or America/Denver, pg_cron follows server TZ
+
+# Postgres custom image
 POSTGRES_IMAGE=ghcr.io/willosagiede-dev/peakstone-postgres:17.6-exts
+
+# Database app roles (least-privilege)
+DB_AUTHENTICATOR_PASSWORD=${DB_AUTHENTICATOR_PASSWORD}
+HASURA_DB_PASSWORD=${HASURA_DB_PASSWORD}
+DB_MIGRATOR_PASSWORD=${DB_MIGRATOR_PASSWORD}
 
 # JWT / Hasura
 JWT_SECRET=${JWT_SECRET}
 HASURA_ADMIN_SECRET=${HASURA_ADMIN_SECRET}
 HASURA_CORS=https://app.example.com,https://backoffice.example.com
 
-# MinIO
-MINIO_IMAGE=minio/minio:latest
+# Local bind paths for persisted data (adjust if not using Dokploy's ../files/ structure)
+PG_DATA_HOST_DIR=../files/volumes/db
+MINIO_DATA_HOST_DIR=../files/volumes/storage/minio_data
+PGCAT_CONFIG_PATH=../files/volumes/pgcat.toml
+
+# pgAdmin
+PGADMIN_EMAIL=admin@example.com     # Use a real email
+PGADMIN_PASSWORD=${PGADMIN_PASSWORD}# Use a strong random password
+
+# pgCat image (pin if needed); latest uses minimal config schema
+PGCAT_IMAGE=ghcr.io/postgresml/pgcat:latest
+
+# --- MinIO Storage ---
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASS=${MINIO_ROOT_PASS}
 MINIO_BUCKET=uploads
 MINIO_ALIAS=minio # mc alias name (not a secret)
-# MinIO client (mc) image (optional):
-# MINIO_MC_IMAGE=minio/mc:latest
+
+# Endpoint for MinIO inside the Docker network
+MINIO_ENDPOINT=minio:9000
+AWS_REGION=us-east-1
+
+# S3 Access Keys
 S3_APP_ACCESS_KEY=psappaccess
 S3_APP_SECRET_KEY=${S3_APP_SECRET_KEY}
+
+# MinIO images
+MINIO_IMAGE=minio/minio:latest
+MINIO_MC_IMAGE=minio/mc:latest      # MinIO client (mc) image
 
 # imgproxy (hex keys)
 IMGPROXY_KEY_HEX=${IMGPROXY_KEY_HEX}
@@ -72,34 +103,25 @@ IMGPROXY_SALT_HEX=${IMGPROXY_SALT_HEX}
 IMGPROXY_BASE_URL=https://s3.internal.example.com/
 IMGPROXY_ALLOWED_SOURCES=https://s3.internal.example.com/
 
-# pgAdmin
-# Use a real email and a strong random password
-PGADMIN_EMAIL=admin@example.com
-PGADMIN_PASSWORD=${PGADMIN_PASSWORD}
+# --- Domains (internal HTTPS via Dokploy Traefik) ---
+DOMAIN_API=api.example.com      # → PostgREST
+DOMAIN_GQL=gql.example.com      # → Hasura
+DOMAIN_FILES=s3.example.com     # → MinIO (S3 API)
+DOMAIN_MINIO_CONSOLE=minio.example.com  # → MinIO (S3 Console)
+DOMAIN_IMG=img.example.com      # → imgproxy
+DOMAIN_PGADMIN=dbadmin.example.com     # → pgAdmin
+DOMAIN_GRAFANA=grafana.example.com     # → Grafana
 
-# pgCat admin (used in pgcat.toml, not in compose)
-PGCAT_ADMIN_USER=${PGCAT_ADMIN_USER}
-PGCAT_ADMIN_PASSWORD=${PGCAT_ADMIN_PASSWORD}
-
-# pgCat image (pin if needed); latest uses minimal config schema
-PGCAT_IMAGE=ghcr.io/postgresml/pgcat:latest
-
-# Domains (internal HTTPS via Dokploy Traefik)
-DOMAIN_API=api.example.com
-DOMAIN_GQL=gql.example.com
-DOMAIN_FILES=s3.example.com
-DOMAIN_MINIO_CONSOLE=minio.example.com
-DOMAIN_IMG=img.example.com
-DOMAIN_PGADMIN=dbadmin.example.com
-DOMAIN_GRAFANA=grafana.example.com
-
-# Logging (Loki / Grafana)
-LOKI_ACCESS_KEY=${LOKI_ACCESS_KEY}
-LOKI_SECRET_KEY=${LOKI_SECRET_KEY}
-MINIO_ENDPOINT=minio:9000
-AWS_REGION=us-east-1
+# --- Logging stack (Loki/Promtail/Grafana) ---
+# Grafana bootstrap credentials
 GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
 GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+
+# Dedicated MinIO credentials used by Loki (via AWS SDK)
+LOKI_ACCESS_KEY=${LOKI_ACCESS_KEY}
+LOKI_SECRET_KEY=${LOKI_SECRET_KEY}
+
+# Environment label for log streams
 ENVIRONMENT=dev
 
 # -----------------------------------------------------------
@@ -132,9 +154,15 @@ pool_mode = "session"   # Hasura needs session; PostgREST can use transaction if
 default_role = "primary"    # route to primary by default
 
 [pools.${POSTGRES_DB}.users.0]
-username = "${POSTGRES_SUPERUSER}"
-password = "${POSTGRES_SUPERPASS}"
+username = "db_authenticator"
+password = "${DB_AUTHENTICATOR_PASSWORD}"
 pool_size = 20
+min_pool_size = 1
+
+[pools.${POSTGRES_DB}.users.1]
+username = "hasura"
+password = "${HASURA_DB_PASSWORD}"
+pool_size = 10
 min_pool_size = 1
 
 [pools.${POSTGRES_DB}.shards.0]
