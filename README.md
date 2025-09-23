@@ -9,18 +9,7 @@ This repo contains the shared “backend as a service” stack for PeakStone:
 - pgAdmin
 - MinIO bootstrap job (mc)
 - Docker Compose (no version key)
-
-## Quick start
-
-1) **Create the repo & push**
-git init peakstone-infra && cd peakstone-infra
-# add all files from this folder structure
-git add .
-git commit -m "infra: initial stack"
-git branch -M main
-# on GitHub/GitLab, create an empty repo then:
-git remote add origin <YOUR_GIT_REMOTE_URL>
-git push -u origin main
+- Centralized logging: Loki + Promtail + Grafana (MinIO object store)
 
 ## Secrets to set
 
@@ -48,19 +37,35 @@ port = 6432
 admin_username = "pgcat"
 admin_password = "change-this-strong"
 
+# Optional hardening
+connect_timeout = 5000
+idle_timeout    = 30000
+healthcheck_timeout = 1000
+healthcheck_delay   = 30000
+ban_time = 60   # seconds; how long to ban a bad server
+worker_threads = 5  # number of worker threads
+autoreload = 15000
+
+tcp_keepalives_idle = 5
+tcp_keepalives_count = 5
+tcp_keepalives_interval = 5
+
+# Pool name matches DB clients connect to
 [pools.postgres]
-pool_mode = "session"
-default_role = "primary"
+pool_mode = "session"       # Hasura needs session; PostgREST can use transaction if you run a second pgcat
+default_role = "primary"    # route to primary by default
 
 [pools.postgres.users.0]
-username = "postgres"
-password = "<POSTGRES_SUPERPASS>"
+username = "postgres"       # replace with POSTGRES_SUPERUSER if different
+password = "<POSTGRES_SUPERPASS>"  # replace with your superuser password
 pool_size = 20
 min_pool_size = 1
 
 [pools.postgres.shards.0]
-database = "postgres"
-servers = [["postgres", 5432, "primary"]]
+database = "postgres"       # replace with POSTGRES_DB
+servers = [
+  ["postgres", 5432, "primary"]  # Docker service name + port
+]
 ```
 
 Notes:
@@ -198,8 +203,8 @@ To opt-in your API service for centralized logging, add labels like this to your
 #       - logging=promtail
 #       - service=api
 #       - env=${ENVIRONMENT:-dev}
-  #       - org=peakstone
-  ```
+#       - org=peakstone
+```
 
 ## Logging: Grafana Access
 
@@ -216,3 +221,36 @@ To opt-in your API service for centralized logging, add labels like this to your
   - Down: `docker compose stop grafana loki promtail && docker compose rm -f grafana loki promtail`
   - Status: `docker compose ps grafana loki promtail`
 - Security: Only `grafana` is exposed via Traefik. `loki` and `promtail` remain internal.
+
+## Traefik Labels and Dokploy Networking
+
+- Purpose: The `traefik.*` labels in `docker-compose.yml` tell Dokploy’s built‑in Traefik how to route inbound HTTPS traffic to each service and which internal port to forward to.
+- Assumptions:
+  - External network: `dokploy-network` (configurable via `PROXY_NETWORK` in `.env`).
+  - Domains: set `DOMAIN_*` variables in `.env` (e.g., `DOMAIN_API`, `DOMAIN_GQL`, `DOMAIN_FILES`, `DOMAIN_GRAFANA`).
+  - TLS: Traefik terminates TLS (LetsEncrypt) at the edge; containers stay on the internal network.
+- Exposure policy:
+  - Only `grafana` is intentionally exposed for the logging stack.
+  - `loki` and `promtail` remain internal with no public routes.
+
+Not using Dokploy/Traefik?
+- Option A — Keep labels, run your own Traefik:
+  - Ensure your Traefik instance joins the same Docker network (e.g., `dokploy-network`), has ACME configured, and honors the labels.
+- Option B — Remove labels and expose host ports directly:
+  - Delete the `traefik.*` labels for any service you want to expose and add `ports:` bindings. Point your DNS (A/AAAA records) to the host, and terminate TLS with your chosen proxy (Nginx/Caddy) or use plain HTTP for local.
+  - Example (PostgREST):
+    - Remove the `traefik.*` labels under `services.postgrest`.
+    - Add:
+      - `ports: ["3000:3000"]`
+  - Example (Grafana):
+    - Remove `traefik.*` labels under `services.grafana`.
+    - Add:
+      - `ports: ["3000:3000"]`
+
+Notes
+- If you keep Traefik, do not also publish the same service ports on the host to avoid conflicts.
+- If you change the network name, update `PROXY_NETWORK` and ensure the network exists before `docker compose up`.
+
+## More on Logging
+
+- Detailed setup, labels, queries, and troubleshooting live in `docs/logging/README.md`.
