@@ -145,20 +145,18 @@ It prints:
 
 - We use Atlas (ariga.io/atlas) for versioned migrations.
 - Repo layout:
-  - `atlas/atlas.hcl` defines environments: `dev`, `staging`, `prod`.
   - `atlas/migrations/` stores migration files.
-- One‑off job: `atlas-migrate` runs `atlas migrate apply --env ${ATLAS_ENV}` before app services start.
-- Configure URLs in `.env` (or Dokploy):
-  - `ATLAS_DEV_URL`, `ATLAS_STAGING_URL`, `ATLAS_PROD_URL` (use `db_migrator` credentials)
-  - Set `ATLAS_ENV` to `prod` (default), `staging`, or `dev`.
-  - Note: DDL on existing objects may require ownership. Start with CREATE‑only changes, or plan a one‑time ownership transfer to `db_migrator` for target schemas.
+- One‑off job: `atlas-migrate` runs `atlas migrate apply --dir file://migrations --url ${ATLAS_URL}` before app services start.
+- Configure URL in `.env` (or Dokploy):
+  - `ATLAS_URL` (use `db_migrator` credentials for the target env)
+  - Note: DDL on existing objects may require ownership. We set schema ownership to `db_migrator` for a new DB to simplify this.
 
 Local dev flow
-- Apply: `docker compose run --rm atlas-migrate atlas migrate apply --env dev`
-- Diff (from dev DB): use Atlas locally: `atlas migrate diff --env dev --dir file://atlas/migrations`
+- Apply with URL: `docker compose run --rm atlas-migrate atlas migrate apply --dir file://migrations --url $ATLAS_URL`
+- Diff (from dev DB): run Atlas locally on your machine against dev DB and write files under `atlas/migrations`.
 
 Deploy flow (Dokploy)
-- Ensure `ATLAS_PROD_URL` (or staging) is set in environment.
+- Ensure `ATLAS_URL` is set in the environment to your target DB.
 - `atlas-migrate` runs automatically in the compose (one‑off) and app services depend on its success.
 
 ## Migrating from Supabase

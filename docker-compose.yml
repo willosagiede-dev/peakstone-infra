@@ -259,13 +259,10 @@ services:
       db-bootstrap:
         condition: service_completed_successfully
     working_dir: /workspace/atlas
-    command: ["migrate", "apply", "--env", "${ATLAS_ENV:-prod}"]
+    command: ["migrate", "apply", "--dir", "file://migrations", "--url", "${ATLAS_URL}"]
     restart: "no"
     environment:
-      ATLAS_DEV_URL: ${ATLAS_DEV_URL}
-      ATLAS_STAGING_URL: ${ATLAS_STAGING_URL}
-      ATLAS_PROD_URL: ${ATLAS_PROD_URL}
-      ATLAS_ENV: ${ATLAS_ENV:-prod}
+      ATLAS_URL: ${ATLAS_URL}
     volumes:
       - ./atlas:/workspace/atlas:ro
 
