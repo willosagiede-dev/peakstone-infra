@@ -4,8 +4,6 @@ services:
     image: ${POSTGRES_IMAGE}
     container_name: postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     networks:
       - dokploy-network
     environment:
@@ -45,8 +43,6 @@ services:
     image: ${PGCAT_IMAGE:-ghcr.io/postgresml/pgcat:latest}
     container_name: pgcat
     restart: unless-stopped
-    ports:
-      - "6432:6432"
     networks:
       - dokploy-network
     depends_on:
@@ -150,9 +146,6 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASS}
     volumes:
       - ${MINIO_DATA_HOST_DIR:-../files/volumes/storage/minio_data}:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 30s
@@ -181,7 +174,6 @@ services:
     networks:
       - dokploy-network
     environment:
-      IMGPROXY_BIND: ":5001"
       IMGPROXY_KEY: ${IMGPROXY_KEY_HEX}
       IMGPROXY_SALT: ${IMGPROXY_SALT_HEX}
       IMGPROXY_BASE_URL: ${IMGPROXY_BASE_URL}
@@ -200,7 +192,7 @@ services:
       - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
       - traefik.http.routers.imgproxy.entrypoints=websecure
       - traefik.http.routers.imgproxy.tls=true
-      - traefik.http.services.imgproxy.loadbalancer.server.port=5001
+      - traefik.http.services.imgproxy.loadbalancer.server.port=8080
 
   # One-off MinIO bootstrap: creates bucket + policy
   minio-init:
