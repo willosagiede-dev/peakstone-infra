@@ -254,3 +254,18 @@ Notes
 ## More on Logging
 
 - Detailed setup, labels, queries, and troubleshooting live in `docs/logging/README.md`.
+
+## Database Access (Ports and Best Practices)
+
+- Recommended: keep database ports closed publicly.
+  - Do not expose `postgres:5432` or `pgcat:6432` to the Internet.
+  - Inside the Docker network, services connect to `postgres:5432` and `pgcat:6432` directly.
+- Admin access options:
+  - Use `pgadmin` (exposed via Traefik at `DOMAIN_PGADMIN`).
+  - Use a VPN (e.g., Tailscale/WireGuard) to reach the host’s private network and connect to pgCat on `6432`.
+  - Use a short‑lived SSH tunnel when needed:
+    - `ssh -L 6432:localhost:6432 user@your-host` → connect client to `localhost:6432` (pgCat)
+    - `ssh -L 5432:localhost:5432 user@your-host` → Postgres direct (only if required)
+- Local development (optional):
+  - For local only, you may temporarily publish ports with an override file, e.g. `ports: ["5432:5432"]` under `postgres` or `ports: ["6432:6432"]` under `pgcat`.
+  - Avoid publishing ports in production; rely on Traefik + VPN/SSH for secure access.
