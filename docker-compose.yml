@@ -1,4 +1,4 @@
- 
+
 services:
   postgres:
     image: ${POSTGRES_IMAGE}
@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     ports:
       - "5432:5432"
+    networks:
+      - dokploy-network
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
@@ -17,6 +19,9 @@ services:
         -c wal_level=logical
         -c shared_preload_libraries=pg_stat_statements,pgaudit,pg_cron,auto_explain
         -c pgaudit.log=ddl
+        -c log_connections=on
+        -c log_disconnections=on
+        -c log_line_prefix='%m [%p] user=%u db=%d app=%a client=%h '
         -c cron.database_name=${POSTGRES_DB}
         -c max_wal_size=2GB
     volumes:
@@ -28,6 +33,11 @@ services:
       timeout: 5s
       retries: 18
       start_period: 90s
+    labels:
+      - logging=promtail
+      - service=postgres
+      - env=${ENVIRONMENT:-dev}
+      - org=peakstone
 
   # db-bootstrap removed: using superuser for app connectivity
 
@@ -37,6 +47,8 @@ services:
     restart: unless-stopped
     ports:
       - "6432:6432"
+    networks:
+      - dokploy-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,11 +61,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    labels:
+      - logging=promtail
+      - service=pooler
+      - env=${ENVIRONMENT:-dev}
+      - org=peakstone
 
   postgrest:
     image: postgrest/postgrest:v12.2.3
     container_name: postgrest
     restart: unless-stopped
+    networks:
+      - dokploy-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,13 +86,24 @@ services:
       PGRST_ROLE_CLAIM_KEY: .role
       PGRST_DB_PREPARED_STATEMENTS: "false"
       PGRST_OPENAPI_SERVER_PROXY_URI: https://${DOMAIN_API}
-    # no Traefik labels; routing managed by Dokploy
-    # healthcheck omitted: image lacks curl/wget/bash; rely on logs and deps
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.postgrest.rule=Host(`${DOMAIN_API}`)
+      - traefik.http.routers.postgrest.entrypoints=websecure
+      - traefik.http.routers.postgrest.tls=true
+      - traefik.http.services.postgrest.loadbalancer.server.port=3000
+      - logging=promtail
+      - service=api
+      - env=${ENVIRONMENT:-dev}
+      - org=peakstone
 
   hasura:
     image: hasura/graphql-engine:v2.40.0-ce
     container_name: hasura
     restart: unless-stopped
+    networks:
+      - dokploy-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,12 +126,24 @@ services:
       HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
       HASURA_GRAPHQL_JWT_SECRET: >
         {"type":"HS256","key":"${JWT_SECRET}","claims_namespace_path":"$","claims_format":"json"}
-    # no Traefik labels; routing managed by Dokploy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.hasura.rule=Host(`${DOMAIN_GQL}`)
+      - traefik.http.routers.hasura.entrypoints=websecure
+      - traefik.http.routers.hasura.tls=true
+      - traefik.http.services.hasura.loadbalancer.server.port=8080
+      - logging=promtail
+      - service=graphql
+      - env=${ENVIRONMENT:-dev}
+      - org=peakstone
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
     container_name: minio
     restart: unless-stopped
+    networks:
+      - dokploy-network
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -116,13 +158,30 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    # no Traefik labels; routing managed by Dokploy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.minio-api.rule=Host(`${DOMAIN_FILES}`)
+      - traefik.http.routers.minio-api.entrypoints=websecure
+      - traefik.http.routers.minio-api.tls=true
+      - traefik.http.services.minio-api.loadbalancer.server.port=9000
+      - traefik.http.routers.minio-console.rule=Host(`${DOMAIN_MINIO_CONSOLE}`)
+      - traefik.http.routers.minio-console.entrypoints=websecure
+      - traefik.http.routers.minio-console.tls=true
+      - traefik.http.services.minio-console.loadbalancer.server.port=9001
+      - logging=promtail
+      - service=storage
+      - env=${ENVIRONMENT:-dev}
+      - org=peakstone
 
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
     container_name: imgproxy
     restart: unless-stopped
+    networks:
+      - dokploy-network
     environment:
+      IMGPROXY_BIND: ":5001"
       IMGPROXY_KEY: ${IMGPROXY_KEY_HEX}
       IMGPROXY_SALT: ${IMGPROXY_SALT_HEX}
       IMGPROXY_BASE_URL: ${IMGPROXY_BASE_URL}
@@ -135,12 +194,20 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
-    # no Traefik labels; routing managed by Dokploy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
+      - traefik.http.routers.imgproxy.entrypoints=websecure
+      - traefik.http.routers.imgproxy.tls=true
+      - traefik.http.services.imgproxy.loadbalancer.server.port=5001
 
   # One-off MinIO bootstrap: creates bucket + policy
   minio-init:
     image: ${MINIO_MC_IMAGE:-minio/mc:latest}
     container_name: minio-init
+    networks:
+      - dokploy-network
     depends_on:
       minio:
         condition: service_started
@@ -154,6 +221,9 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET}
       S3_APP_ACCESS_KEY: ${S3_APP_ACCESS_KEY}
       S3_APP_SECRET_KEY: ${S3_APP_SECRET_KEY}
+      # Loki dedicated credentials (optional; enables least-privilege user/policy)
+      LOKI_ACCESS_KEY: ${LOKI_ACCESS_KEY}
+      LOKI_SECRET_KEY: ${LOKI_SECRET_KEY}
     volumes:
       - ./minio/init:/init:ro
 
@@ -161,6 +231,8 @@ services:
     image: dpage/pgadmin4:8.12
     container_name: pgadmin
     restart: unless-stopped
+    networks:
+      - dokploy-network
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
@@ -171,4 +243,71 @@ services:
       timeout: 10s
       start_period: 60s
       retries: 5
-    # no Traefik labels; routing managed by Dokploy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
+      - traefik.http.routers.pgadmin.entrypoints=websecure
+      - traefik.http.routers.pgadmin.tls=true
+      - traefik.http.services.pgadmin.loadbalancer.server.port=80
+
+  loki:
+    image: grafana/loki:2.9.8
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    networks:
+      - dokploy-network
+    environment:
+      AWS_ACCESS_KEY_ID: ${LOKI_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${LOKI_SECRET_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+    volumes:
+      - ./logging/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/var/loki
+    depends_on:
+      minio:
+        condition: service_started
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    command: ["-config.file=/etc/promtail/promtail-config.yml"]
+    networks:
+      - dokploy-network
+    volumes:
+      - ./logging/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - promtail_pos:/var/lib/promtail
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      loki:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    networks:
+      - dokploy-network
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./logging/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      loki:
+        condition: service_started
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.grafana.rule=Host(`${DOMAIN_GRAFANA}`)
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.routers.grafana.tls=true
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  loki_data:
+  grafana_data:
+  promtail_pos:
