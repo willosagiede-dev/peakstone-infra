@@ -25,10 +25,17 @@ tcp_keepalives_interval = 5
 pool_mode = "session"       # Hasura needs session; PostgREST can use transaction if you run a second pgcat
 default_role = "primary"    # route to primary by default
 
+# App connections (avoid superuser in steady state)
 [pools.postgres.users.0]
-username = "postgres"       # replace with POSTGRES_SUPERUSER if different
-password = "<POSTGRES_SUPERPASS>"  # replace with your superuser password
+username = "db_authenticator"   # set password from .env DB_AUTHENTICATOR_PASSWORD
+password = "<DB_AUTHENTICATOR_PASSWORD>"
 pool_size = 20
+min_pool_size = 1
+
+[pools.postgres.users.1]
+username = "hasura"              # set password from .env HASURA_DB_PASSWORD
+password = "<HASURA_DB_PASSWORD>"
+pool_size = 10
 min_pool_size = 1
 
 [pools.postgres.shards.0]
