@@ -44,12 +44,17 @@ ALTER ROLE db_migrator WITH LOGIN PASSWORD :'DB_MIGRATOR_PASSWORD';
 DO $$
 BEGIN
   EXECUTE format('GRANT CREATE, TEMPORARY ON DATABASE %I TO db_migrator;', current_database());
+  EXECUTE format('GRANT CREATE, TEMPORARY ON DATABASE %I TO hasura;', current_database());
 END
 $$;
 
 -- Pre-create Atlas revision schemas (idempotent) and own them by db_migrator
 CREATE SCHEMA IF NOT EXISTS atlas_schema AUTHORIZATION db_migrator;
 CREATE SCHEMA IF NOT EXISTS atlas_schema_revisions AUTHORIZATION db_migrator;
+
+-- Pre-create Hasura internal schemas and own them by hasura (idempotent)
+CREATE SCHEMA IF NOT EXISTS hdb_catalog AUTHORIZATION hasura;
+CREATE SCHEMA IF NOT EXISTS hdb_views AUTHORIZATION hasura;
 
 -- App auth pattern: authenticator can assume app_user and web_anon
 GRANT web_anon TO db_authenticator;
