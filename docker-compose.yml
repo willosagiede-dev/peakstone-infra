@@ -23,7 +23,7 @@ services:
         -c cron.database_name=${POSTGRES_DB}
         -c max_wal_size=2GB
     volumes:
-      - ${PG_DATA_HOST_DIR:-../files/volumes/db/data}:/var/lib/postgresql/data
+      - ${PG_DATA_HOST_DIR:-../files/volumes/db}:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD", "pg_isready", "-q", "-U", "${POSTGRES_SUPERUSER}", "-d", "${POSTGRES_DB}", "-h", "localhost" ]
@@ -37,7 +37,27 @@ services:
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
 
-  # db-bootstrap removed: using superuser for app connectivity
+  # One-off Postgres bootstrap: creates roles, grants, and sets passwords
+  db-bootstrap:
+    image: postgres:17
+    container_name: db-bootstrap
+    networks:
+      - dokploy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/scripts/db-bootstrap.sh"]
+    restart: "no"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      PGPASSWORD: ${POSTGRES_SUPERPASS}
+      DB_AUTHENTICATOR_PASSWORD: ${DB_AUTHENTICATOR_PASSWORD}
+      HASURA_DB_PASSWORD: ${HASURA_DB_PASSWORD}
+      DB_MIGRATOR_PASSWORD: ${DB_MIGRATOR_PASSWORD}
+    volumes:
+      - ./scripts:/scripts:ro
 
   pgcat:
     image: ${PGCAT_IMAGE:-ghcr.io/postgresml/pgcat:latest}
@@ -74,8 +94,12 @@ services:
         condition: service_healthy
       pgcat:
         condition: service_started
+      db-bootstrap:
+        condition: service_completed_successfully
+      atlas-migrate:
+        condition: service_completed_successfully
     environment:
-      PGRST_DB_URI: postgres://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@pgcat:6432/${POSTGRES_DB}
+      PGRST_DB_URI: postgres://db_authenticator:${DB_AUTHENTICATOR_PASSWORD}@pgcat:6432/${POSTGRES_DB}
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_DB_SCHEMAS: public,common,people,pipeline,activities,leads,docs
       PGRST_JWT_SECRET: ${JWT_SECRET}
@@ -105,6 +129,10 @@ services:
         condition: service_healthy
       pgcat:
         condition: service_started
+      db-bootstrap:
+        condition: service_completed_successfully
+      atlas-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz >/dev/null || exit 1"]
       interval: 10s
@@ -112,7 +140,7 @@ services:
       retries: 5
       start_period: 30s
     environment:
-      HASURA_GRAPHQL_DATABASE_URL: postgres://${POSTGRES_SUPERUSER}:${POSTGRES_SUPERPASS}@pgcat:6432/${POSTGRES_DB}
+      HASURA_GRAPHQL_DATABASE_URL: postgres://hasura:${HASURA_DB_PASSWORD}@pgcat:6432/${POSTGRES_DB}
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: web_anon
       HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
@@ -133,6 +161,33 @@ services:
       - service=graphql
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: pgadmin
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost/misc/ping >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
+      - traefik.http.routers.pgadmin.entrypoints=websecure
+      - traefik.http.routers.pgadmin.tls=true
+      - traefik.http.services.pgadmin.loadbalancer.server.port=80
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
@@ -167,6 +222,53 @@ services:
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
 
+  # One-off MinIO bootstrap: creates bucket + policy
+  minio-init:
+    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
+    container_name: minio-init
+    networks:
+      - dokploy-network
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: ["/bin/sh","/init/minio-init.sh"]
+    restart: "no"
+    environment:
+      MINIO_ALIAS: ${MINIO_ALIAS:-minio}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASS: ${MINIO_ROOT_PASS}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      S3_APP_ACCESS_KEY: ${S3_APP_ACCESS_KEY}
+      S3_APP_SECRET_KEY: ${S3_APP_SECRET_KEY}
+      # Loki dedicated credentials (optional; enables least-privilege user/policy)
+      LOKI_ACCESS_KEY: ${LOKI_ACCESS_KEY}
+      LOKI_SECRET_KEY: ${LOKI_SECRET_KEY}
+    volumes:
+      - ./minio/init:/init:ro
+
+  # One-off Atlas migrations apply (runs before app services)
+  atlas-migrate:
+    image: arigaio/atlas:latest
+    container_name: atlas-migrate
+    networks:
+      - dokploy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
+    working_dir: /workspace
+    entrypoint: ["atlas", "migrate", "apply", "--env", "${ATLAS_ENV:-prod}"]
+    restart: "no"
+    environment:
+      ATLAS_DEV_URL: ${ATLAS_DEV_URL}
+      ATLAS_STAGING_URL: ${ATLAS_STAGING_URL}
+      ATLAS_PROD_URL: ${ATLAS_PROD_URL}
+      ATLAS_ENV: ${ATLAS_ENV:-prod}
+    volumes:
+      - ./atlas:/workspace/atlas:ro
+
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
     container_name: imgproxy
@@ -193,55 +295,6 @@ services:
       - traefik.http.routers.imgproxy.entrypoints=websecure
       - traefik.http.routers.imgproxy.tls=true
       - traefik.http.services.imgproxy.loadbalancer.server.port=8080
-
-  # One-off MinIO bootstrap: creates bucket + policy
-  minio-init:
-    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
-    container_name: minio-init
-    networks:
-      - dokploy-network
-    depends_on:
-      minio:
-        condition: service_started
-    entrypoint: ["/bin/sh","/init/minio-init.sh"]
-    restart: "no"
-    environment:
-      MINIO_ALIAS: ${MINIO_ALIAS:-minio}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASS: ${MINIO_ROOT_PASS}
-      MINIO_BUCKET: ${MINIO_BUCKET}
-      S3_APP_ACCESS_KEY: ${S3_APP_ACCESS_KEY}
-      S3_APP_SECRET_KEY: ${S3_APP_SECRET_KEY}
-      # Loki dedicated credentials (optional; enables least-privilege user/policy)
-      LOKI_ACCESS_KEY: ${LOKI_ACCESS_KEY}
-      LOKI_SECRET_KEY: ${LOKI_SECRET_KEY}
-    volumes:
-      - ./minio/init:/init:ro
-
-  pgadmin:
-    image: dpage/pgadmin4:8.12
-    container_name: pgadmin
-    restart: unless-stopped
-    networks:
-      - dokploy-network
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost/misc/ping >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 10s
-      start_period: 60s
-      retries: 5
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
-      - traefik.http.routers.pgadmin.entrypoints=websecure
-      - traefik.http.routers.pgadmin.tls=true
-      - traefik.http.services.pgadmin.loadbalancer.server.port=80
 
   loki:
     image: grafana/loki:2.9.8
@@ -303,3 +356,4 @@ volumes:
   loki_data:
   grafana_data:
   promtail_pos:
+  pgadmin_data:
