@@ -23,6 +23,9 @@ Populate `.env.example` (copy to `.env`) with strong values:
 - IMGPROXY_SALT_HEX: 16-byte hex (32 hex chars)
 - PGADMIN_EMAIL / PGADMIN_PASSWORD: real email + strong password
  - pgCat admin: choose `PGCAT_ADMIN_USER` and a strong `PGCAT_ADMIN_PASSWORD` (used to secure pgCat admin APIs)
+ - Logging: `LOKI_ACCESS_KEY` / `LOKI_SECRET_KEY`, `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`
+ - App DB roles: `DB_AUTHENTICATOR_PASSWORD` (PostgREST) and `HASURA_DB_PASSWORD` (Hasura)
+ - Migrations: `DB_MIGRATOR_PASSWORD` (Atlas migrator user)
 
 ### pgCat config (0.2.5 minimal)
 
@@ -136,19 +139,65 @@ It prints:
 
 - Postgres includes a healthcheck (`pg_isready`).
 - Dependent services now wait on Postgres healthy.
+- A one‑off `db-bootstrap` job sets up least‑privilege roles, grants, and passwords for app connections.
 
-## Pin Images by Digest
+## Database Migrations (Atlas)
 
-For reproducible deployments, generate a pinned override file with image digests:
+- We use Atlas (ariga.io/atlas) for versioned migrations.
+- Repo layout:
+  - `atlas/atlas.hcl` defines environments: `dev`, `staging`, `prod`.
+  - `atlas/migrations/` stores migration files.
+- One‑off job: `atlas-migrate` runs `atlas migrate apply --env ${ATLAS_ENV}` before app services start.
+- Configure URLs in `.env` (or Dokploy):
+  - `ATLAS_DEV_URL`, `ATLAS_STAGING_URL`, `ATLAS_PROD_URL` (use `db_migrator` credentials)
+  - Set `ATLAS_ENV` to `prod` (default), `staging`, or `dev`.
+  - Note: DDL on existing objects may require ownership. Start with CREATE‑only changes, or plan a one‑time ownership transfer to `db_migrator` for target schemas.
 
-./scripts/pin-images.sh
-# Then use the override when deploying
-docker compose -f docker-compose.yml -f docker-compose.pinned.yml up -d
+Local dev flow
+- Apply: `docker compose run --rm atlas-migrate atlas migrate apply --env dev`
+- Diff (from dev DB): use Atlas locally: `atlas migrate diff --env dev --dir file://atlas/migrations`
 
+Deploy flow (Dokploy)
+- Ensure `ATLAS_PROD_URL` (or staging) is set in environment.
+- `atlas-migrate` runs automatically in the compose (one‑off) and app services depend on its success.
 
-Notes:
-- This resolves and pins registry images (pgCat, PostgREST, Hasura, MinIO, mc, imgproxy, pgAdmin).
-- The custom Postgres image is built locally (not pinned by digest here). To pin it, push to a registry first and reference the resulting digest.
+## Migrating from Supabase
+
+This stack can receive your data from Supabase Cloud. A few tips make it smooth:
+
+- Ownership & privileges
+  - Schemas are owned by `db_migrator`. Restore with ownership stripped and re‑owned to `db_migrator` to avoid role mismatches.
+  - Use `pg_restore` flags: `--no-owner --no-privileges --role=db_migrator`.
+
+- Supabase-specific roles & policies
+  - Supabase often references roles `anon`, `authenticated`, `service_role` in policies. Our bootstrap creates these as `NOLOGIN` placeholders so `CREATE POLICY` doesn’t fail.
+  - We also provide a compatibility function `auth.uid()` (postgres/init/010-auth-compat.sql) that reads the user id from PostgREST's JWT claims or Hasura's session header so existing policies using `auth.uid()` continue to work.
+  - If you plan to replace RLS with your own (PostgREST/Hasura), exclude policies from the dump or adjust after restore.
+
+- Supabase extensions/schemas
+  - Exclude Supabase-only schemas you don’t need (e.g., `supabase_*`, `auth`, `realtime`) to keep your DB lean.
+  - Only include extensions you actually use; our image ships common ones (pg_stat_statements, pgaudit, pg_cron, etc.).
+
+- Example commands
+  - All-in-one (recommended for clean import):
+    - Dump: `pg_dump -Fc --no-owner --no-privileges "$SUPABASE_URL" -f all.dump`
+    - Restore: `pg_restore -d "$TARGET_URL" --no-owner --no-privileges --role=db_migrator -j4 all.dump`
+  - Schema/data split:
+    - Schema: `pg_dump -Fc --schema-only --no-owner --no-privileges "$SUPABASE_URL" -f schema.dump`
+    - Data: `pg_dump -Fc --data-only "$SUPABASE_URL" -f data.dump`
+    - Restore schema: `pg_restore -d "$TARGET_URL" --no-owner --no-privileges --role=db_migrator -j4 schema.dump`
+    - Restore data: `pg_restore -d "$TARGET_URL" --role=db_migrator -j4 data.dump`
+  - Target URL example: `TARGET_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable`
+
+- Post-restore sanity
+  - Run `VACUUM ANALYZE;` (optional but recommended).
+  - Check sequences (pg_restore usually sets them correctly).
+  - Verify app access via PostgREST and Hasura with least‑privilege roles.
+
+## Image Versions
+
+- Images are controlled via tags in `docker-compose.yml` or `.env`.
+- If you need fully reproducible builds, pin images by digest manually in your compose or registry automation. This repo no longer includes a digest pinning script.
 
 ## Local Usage
 
@@ -187,7 +236,7 @@ Build and publish your custom Postgres image to GHCR so Dokploy pulls it instead
 - Make sure Dokploy can pull from GHCR (public is easiest). For private images, add registry credentials in Dokploy.
 
 4) Deploy
-- In Dokploy, point to `docker-compose.yml` (and optional pinned override).
+- In Dokploy, point to `docker-compose.yml`.
 - Deploy; the server will pull your prebuilt Postgres image.
 
 ## Logging: API labels example
@@ -221,6 +270,18 @@ To opt-in your API service for centralized logging, add labels like this to your
   - Down: `docker compose stop grafana loki promtail && docker compose rm -f grafana loki promtail`
   - Status: `docker compose ps grafana loki promtail`
 - Security: Only `grafana` is exposed via Traefik. `loki` and `promtail` remain internal.
+
+## Least‑Privilege DB Roles
+
+- A `db-bootstrap` one‑off container (runs after Postgres healthy) creates roles and grants, and sets passwords:
+  - Roles: `web_anon` (NOLOGIN), `app_user` (NOLOGIN), `db_authenticator` (LOGIN), `hasura` (LOGIN), `read_only` (NOLOGIN), `db_migrator` (LOGIN)
+  - Grants & ownership: application schemas are owned by `db_migrator`; app_user/hasura get DML; web_anon/read_only get SELECT.
+  - Defaults: future objects created by `db_migrator` grant SELECT to web_anon/read_only and DML to app_user/hasura.
+  - Auth pattern: `db_authenticator` can `SET ROLE` to `web_anon` or `app_user`.
+- Connections (via pgCat):
+  - PostgREST: `postgres://db_authenticator:${DB_AUTHENTICATOR_PASSWORD}@pgcat:6432/${POSTGRES_DB}`
+  - Hasura: `postgres://hasura:${HASURA_DB_PASSWORD}@pgcat:6432/${POSTGRES_DB}`
+- If your DB is already initialized, this job safely applies changes idempotently.
 
 ## Traefik Labels and Dokploy Networking
 
