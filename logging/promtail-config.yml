@@ -40,7 +40,7 @@ scrape_configs:
             - regex:
                 expression: 'HTTP/\S+\" (?P<status>\d{3})'
             - labels:
-                status
+                status:
       - match:
           selector: '{service="postgres"}'
           stages:
@@ -48,15 +48,15 @@ scrape_configs:
             - regex:
                 expression: 'user=(?P<dbuser>\S+) db=(?P<database>\S+) app=(?P<app>[^ ]+) client=(?P<client>\S+)'
             - labels:
-                dbuser
-                database
-                app
-                client
+                dbuser:
+                database:
+                app:
+                client:
             # Extract a coarse severity if present (LOG|ERROR|WARNING|INFO|DEBUG...)
             - regex:
                 expression: ' (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\d?)[: ]'
             - labels:
-                severity
+                severity:
             # Tag pg_cron lines for separate tracking
             - match:
                 selector: '{service="postgres"} |= "pg_cron"'
@@ -64,7 +64,24 @@ scrape_configs:
                   - regex:
                       expression: '(?P<component>pg_cron)'
                   - labels:
-                      component
+                      component:
+            # Authentication failures
+            - match:
+                selector: '{service="postgres"} |= "password authentication failed"'
+                stages:
+                  - regex:
+                      expression: 'password authentication failed for user "(?P<dbuser>[^\"]+)"'
+                  - labels:
+                      component: auth
+                      outcome: failed
+                      dbuser:
+            # Successful connections
+            - match:
+                selector: '{service="postgres"} |= "connection authorized"'
+                stages:
+                  - labels:
+                      component: auth
+                      outcome: success
       - match:
           selector: '{service="api"}'
           stages:
@@ -78,25 +95,8 @@ scrape_configs:
                   user_id: user_id
                   request_id: request_id
             - labels:
-                level
-                component
-                event
-                user_id
-                request_id
-            # Authentication failures
-            - match:
-                selector: '{service="postgres"} |= "password authentication failed"'
-                stages:
-                  - regex:
-                      expression: 'password authentication failed for user "(?P<dbuser>[^\"]+)"'
-                  - labels:
-                      component: auth
-                      outcome: failed
-                      dbuser
-            # Successful connections
-            - match:
-                selector: '{service="postgres"} |= "connection authorized"'
-                stages:
-                  - labels:
-                      component: auth
-                      outcome: success
+                level:
+                component:
+                event:
+                user_id:
+                request_id:

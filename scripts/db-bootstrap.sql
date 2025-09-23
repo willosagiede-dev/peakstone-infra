@@ -51,6 +51,8 @@ DECLARE s text;
 DECLARE r record;
 BEGIN
   FOREACH s IN ARRAY ARRAY['public','common','people','pipeline','activities','leads','docs'] LOOP
+    -- Ensure schema exists and is owned by db_migrator
+    EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION db_migrator;', s);
     EXECUTE format('REVOKE ALL ON SCHEMA %I FROM PUBLIC;', s);
     EXECUTE format('GRANT USAGE ON SCHEMA %I TO web_anon, app_user, hasura, read_only;', s);
     -- Allow db_migrator to create objects (new objects will be owned by db_migrator)

@@ -258,8 +258,8 @@ services:
         condition: service_healthy
       db-bootstrap:
         condition: service_completed_successfully
-    working_dir: /workspace
-    entrypoint: ["atlas", "migrate", "apply", "--env", "${ATLAS_ENV:-prod}"]
+    working_dir: /workspace/atlas
+    command: ["migrate", "apply", "--env", "${ATLAS_ENV:-prod}"]
     restart: "no"
     environment:
       ATLAS_DEV_URL: ${ATLAS_DEV_URL}
