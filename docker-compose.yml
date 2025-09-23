@@ -99,7 +99,7 @@ services:
       atlas-migrate:
         condition: service_completed_successfully
     environment:
-      PGRST_DB_URI: postgres://db_authenticator:${DB_AUTHENTICATOR_PASSWORD}@pgcat:6432/${POSTGRES_DB}
+      PGRST_DB_URI: host=pgcat port=6432 dbname=${POSTGRES_DB} user=db_authenticator password=${DB_AUTHENTICATOR_PASSWORD}
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_DB_SCHEMAS: public,common,people,pipeline,activities,leads,docs
       PGRST_JWT_SECRET: ${JWT_SECRET}
@@ -140,7 +140,7 @@ services:
       retries: 5
       start_period: 30s
     environment:
-      HASURA_GRAPHQL_DATABASE_URL: postgres://hasura:${HASURA_DB_PASSWORD}@pgcat:6432/${POSTGRES_DB}
+      HASURA_GRAPHQL_DATABASE_URL: host=pgcat port=6432 dbname=${POSTGRES_DB} user=hasura password=${HASURA_DB_PASSWORD}
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: web_anon
       HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
@@ -298,6 +298,7 @@ services:
     command: ["-config.file=/etc/loki/loki-config.yml"]
     networks:
       - dokploy-network
+    user: "0:0"
     environment:
       AWS_ACCESS_KEY_ID: ${LOKI_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${LOKI_SECRET_KEY}
