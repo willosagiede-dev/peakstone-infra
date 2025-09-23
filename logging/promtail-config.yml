@@ -1,0 +1,102 @@
+server:
+  http_listen_port: 9080
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker-logs
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+    relabel_configs:
+      # Only scrape containers explicitly labeled: logging=promtail
+      - source_labels: [__meta_docker_container_label_logging]
+        regex: promtail
+        action: keep
+      - source_labels: [__meta_docker_container_name]
+        target_label: container
+      - source_labels: [__meta_docker_container_label_service]
+        target_label: service
+      - source_labels: [__meta_docker_container_label_env]
+        target_label: env
+      - source_labels: [__meta_docker_container_label_org]
+        target_label: org
+    pipeline_stages:
+      - docker: {}   # parse Docker JSON log format
+      - match:
+          selector: '{service="storage"}'
+          stages:
+            # Drop common noise from MinIO
+            - drop:
+                expression: '(/minio/health|/metrics|/favicon\.ico)'
+            # Drop successful HTTP responses (2xx/3xx)
+            - drop:
+                expression: 'HTTP/[0-9.]+\" [23]\\d\\d'
+            # Extract status code for remaining logs
+            - regex:
+                expression: 'HTTP/\S+\" (?P<status>\d{3})'
+            - labels:
+                status
+      - match:
+          selector: '{service="postgres"}'
+          stages:
+            # Extract connection context from Postgres log_line_prefix
+            - regex:
+                expression: 'user=(?P<dbuser>\S+) db=(?P<database>\S+) app=(?P<app>[^ ]+) client=(?P<client>\S+)'
+            - labels:
+                dbuser
+                database
+                app
+                client
+            # Extract a coarse severity if present (LOG|ERROR|WARNING|INFO|DEBUG...)
+            - regex:
+                expression: ' (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\d?)[: ]'
+            - labels:
+                severity
+            # Tag pg_cron lines for separate tracking
+            - match:
+                selector: '{service="postgres"} |= "pg_cron"'
+                stages:
+                  - regex:
+                      expression: '(?P<component>pg_cron)'
+                  - labels:
+                      component
+      - match:
+          selector: '{service="api"}'
+          stages:
+            # Parse app-emitted JSON logs so fields become labels
+            - json:
+                expressions:
+                  level: level
+                  message: msg
+                  component: component
+                  event: event
+                  user_id: user_id
+                  request_id: request_id
+            - labels:
+                level
+                component
+                event
+                user_id
+                request_id
+            # Authentication failures
+            - match:
+                selector: '{service="postgres"} |= "password authentication failed"'
+                stages:
+                  - regex:
+                      expression: 'password authentication failed for user "(?P<dbuser>[^\"]+)"'
+                  - labels:
+                      component: auth
+                      outcome: failed
+                      dbuser
+            # Successful connections
+            - match:
+                selector: '{service="postgres"} |= "connection authorized"'
+                stages:
+                  - labels:
+                      component: auth
+                      outcome: success

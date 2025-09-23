@@ -1,0 +1,114 @@
+{
+  "id": null,
+  "uid": "starter-logs",
+  "title": "Starter: Logs Overview",
+  "tags": ["logging", "loki"],
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Errors by service (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (service) (rate({service=~\".+\"} |= \"error\" [5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Top noisy services (log line rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "topk(5, sum by (service) (rate({service=~\".+\"}[5m])))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Recent errors (all services)",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 8 },
+      "options": { "showTime": true, "enableLogDetails": true },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=~\".+\"} |= \"error\"",
+          "refId": "A"
+        }
+      ]
+    }
+    ,
+    {
+      "type": "timeseries",
+      "title": "Postgres errors (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (severity) (rate({service=\"postgres\", severity=~\"ERROR|FATAL|PANIC\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "pg_cron failures (recent)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 17 },
+      "options": { "showTime": true, "enableLogDetails": true },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service=\"postgres\"} |= \"pg_cron\" |= \"ERROR\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Postgres auth failures (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (dbuser) (rate(({service=\\\"postgres\\\"} |= \\\"password authentication failed\\\")[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Postgres connection success (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (database) (rate(({service=\\\"postgres\\\"} |= \\\"connection authorized\\\")[5m]))",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "service",
+        "label": "Service",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({service=~\".+\"}, service)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  }
+}
