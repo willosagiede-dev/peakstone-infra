@@ -145,54 +145,23 @@ Notes:
 - This resolves and pins registry images (pgCat, PostgREST, Hasura, MinIO, mc, imgproxy, pgAdmin).
 - The custom Postgres image is built locally (not pinned by digest here). To pin it, push to a registry first and reference the resulting digest.
 
-## Run Locally (no Traefik)
+## Local Usage
 
-This repo is designed for Traefik/Dokploy in production. For local testing without Traefik, use the provided override to expose ports on localhost.
+This repo targets Traefik/Dokploy deployments. For local testing, you can still run the stack directly:
 
-1) Generate secrets and prepare .env
-- Copy the example and fill with strong values:
-  - cp .env.example .env
-- Optional helper:
-  - ./scripts/generate-secrets.sh
-  - Paste the output into .env
-- Copy the pgCat config example and fill passwords (using postgres user):
-  - cp pgcat/pgcat.toml.example pgcat/pgcat.toml
+1) Prepare `.env`
+- Copy example and fill values: `cp .env.example .env`
+- Optional helper: `./scripts/generate-secrets.sh` and paste into `.env`
+- Copy pgCat config example and fill passwords (using postgres user):
+  - `cp pgcat/pgcat.toml.example pgcat/pgcat.toml`
   - Set username/password to POSTGRES_SUPERUSER/POSTGRES_SUPERPASS
 
-2) Build the custom Postgres image
-- Option A (local build):
-  - docker compose -f docker-compose.yml -f docker-compose.build.yml build postgres
-  - docker compose -f docker-compose.yml -f docker-compose.build.yml up -d postgres
-  - This uses a local image tag: local/peakstone-postgres:17.6-exts
-- Option B (pull from GHCR): set `POSTGRES_IMAGE` in `.env` to the GHCR image you publish (see below), then skip local build.
+2) Start the stack
+- `docker compose up -d`
 
-3) Start the stack with local override
-- docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
-
-4) Verify services
-- Check status: docker compose -f docker-compose.yml -f docker-compose.local.yml ps
-- Tail logs (e.g. postgres): docker compose -f docker-compose.yml logs -f postgres
-
-5) Access endpoints on localhost
-- PostgREST: http://localhost:3000
-- Hasura: http://localhost:8080/healthz (200 OK)
-- MinIO API: http://localhost:9000 (S3)
-- MinIO Console: http://localhost:9001
-- imgproxy: http://localhost:8081
-- pgAdmin: http://localhost:8082
-
-6) Connect pgAdmin to pgCat
-- Add a new server:
-  - Name: PeakStone via pgCat
-  - Host: pgcat
-  - Port: 6432
-  - Username: POSTGRES_SUPERUSER from .env
-  - Password: POSTGRES_SUPERPASS from .env
-  - Database: POSTGRES_DB from .env (optional, can leave blank)
-
-Notes
-- If a localhost port is taken, edit docker-compose.local.yml and change the left-hand port.
-- For production/Dokploy, don’t use the local override. Use the main compose (and optional pinned override) with Traefik.
+3) Verify services
+- `docker compose ps`
+- Tail logs (e.g. postgres): `docker compose logs -f postgres`
 
 ## Production Postgres Image (GHCR)
 
@@ -215,3 +184,35 @@ Build and publish your custom Postgres image to GHCR so Dokploy pulls it instead
 4) Deploy
 - In Dokploy, point to `docker-compose.yml` (and optional pinned override).
 - Deploy; the server will pull your prebuilt Postgres image.
+
+## Logging: API labels example
+
+To opt-in your API service for centralized logging, add labels like this to your `docker-compose.yml` (or via Dokploy service labels):
+
+```yaml
+# --- Example: API service (add labels for logging) ---
+# services:
+#   api:
+#     # ... your image/config ...
+#     labels:
+#       - logging=promtail
+#       - service=api
+#       - env=${ENVIRONMENT:-dev}
+  #       - org=peakstone
+  ```
+
+## Logging: Grafana Access
+
+- Domain: set `DOMAIN_GRAFANA` in `.env` (Dokploy maps the domain to service `grafana`).
+- Login: `GF_SECURITY_ADMIN_USER` / `GF_SECURITY_ADMIN_PASSWORD` from `.env`.
+- Data source: Loki is pre-provisioned and set as default.
+- Explore logs: Grafana → Explore → select `Loki` → run queries.
+- Example queries:
+  - `{service="api"} |= "error"`
+  - `sum by (service) (rate({env="dev"}[5m]))`
+  - `{service="postgres", component="auth"}`
+- Quick control (logging only):
+  - Up: `docker compose up -d grafana loki promtail`
+  - Down: `docker compose stop grafana loki promtail && docker compose rm -f grafana loki promtail`
+  - Status: `docker compose ps grafana loki promtail`
+- Security: Only `grafana` is exposed via Traefik. `loki` and `promtail` remain internal.
