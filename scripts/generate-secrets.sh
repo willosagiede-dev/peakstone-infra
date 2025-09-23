@@ -74,7 +74,7 @@ PGCAT_CONFIG_PATH=../files/volumes/pgcat.toml
 
 # pgAdmin
 PGADMIN_EMAIL=admin@example.com     # Use a real email
-PGADMIN_PASSWORD=${PGADMIN_PASSWORD}# Use a strong random password
+PGADMIN_PASSWORD=${PGADMIN_PASSWORD}
 
 # pgCat image (pin if needed); latest uses minimal config schema
 PGCAT_IMAGE=ghcr.io/postgresml/pgcat:latest
@@ -124,6 +124,15 @@ LOKI_SECRET_KEY=${LOKI_SECRET_KEY}
 # Environment label for log streams
 ENVIRONMENT=dev
 
+# --- Atlas migrations ---
+# Select env for atlas-migrate one-off job: dev|staging|prod
+ATLAS_ENV=prod
+# Connection URLs (do not commit real secrets; set in Dokploy for prod)
+# Prefer a dedicated migrator role (db_migrator) for Atlas
+ATLAS_DEV_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@localhost:5432/${POSTGRES_DB}?sslmode=disable
+ATLAS_STAGING_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+ATLAS_PROD_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+
 # -----------------------------------------------------------
 # Remove the section below from your .env
 
@@ -140,8 +149,8 @@ connect_timeout = 5000
 idle_timeout    = 30000
 healthcheck_timeout = 1000
 healthcheck_delay   = 30000
-ban_time = 60   # seconds; how long to ban a bad server
-worker_threads = 5  # number of worker threads
+ban_time = 60
+worker_threads = 5
 autoreload = 15000
 
 tcp_keepalives_idle = 5
@@ -150,8 +159,8 @@ tcp_keepalives_interval = 5
 
 # Pool name matches DB clients connect to
 [pools.${POSTGRES_DB}]
-pool_mode = "session"   # Hasura needs session; PostgREST can use transaction if you run a second pgcat
-default_role = "primary"    # route to primary by default
+pool_mode = "session"
+default_role = "primary"
 
 [pools.${POSTGRES_DB}.users.0]
 username = "db_authenticator"
@@ -166,7 +175,7 @@ pool_size = 10
 min_pool_size = 1
 
 [pools.${POSTGRES_DB}.shards.0]
-database = "${POSTGRES_DB}"     # replace with POSTGRES_DB
+database = "${POSTGRES_DB}"
 servers = [
     ["postgres", 5432, "primary"]   # Docker service name + port
     # ["postgres-replica-1", 5432, "replica"],
