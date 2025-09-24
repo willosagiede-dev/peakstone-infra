@@ -79,7 +79,7 @@ MINIO_DATA_HOST_DIR=../files/volumes/storage/minio_data
 PGCAT_CONFIG_PATH=../files/volumes/pgcat.toml
 
 # pgAdmin
-PGADMIN_EMAIL=admin@example.com     # Use a real email
+PGADMIN_EMAIL=admin@example.com
 PGADMIN_PASSWORD=${PGADMIN_PASSWORD}
 
 # pgCat image (pin if needed); latest uses minimal config schema
