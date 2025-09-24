@@ -9,7 +9,7 @@ This repo contains the shared “backend as a service” stack for PeakStone:
 - pgAdmin
 - MinIO bootstrap job (mc)
 - Docker Compose (no version key)
-- Centralized logging: Loki + Promtail + Grafana (MinIO object store)
+- Centralized logging: Loki + Alloy + Grafana (MinIO object store)
 
 ## Secrets to set
 
@@ -118,8 +118,7 @@ It prints:
 ## Notes
 
 - MinIO policy now follows `MINIO_BUCKET` dynamically during bootstrap; no manual edits needed.
-- Ensure your Traefik/Dokploy network exists (`dokploy-network`) before bringing the stack up.
-  - You can customize the network name via `PROXY_NETWORK` in `.env`.
+- Ensure the external Docker network exists (`dokploy-network`) before bringing the stack up.
 - PostgREST uses role `web_anon` if present.
 
 ### Service settings
@@ -199,7 +198,7 @@ This stack can receive your data from Supabase Cloud. A few tips make it smooth:
 
 ## Local Usage
 
-This repo targets Traefik/Dokploy deployments. For local testing, you can still run the stack directly:
+This repo targets Dokploy deployments with native Domains. For local testing, you can still run the stack directly:
 
 1) Prepare `.env`
 - Copy example and fill values: `cp .env.example .env`
@@ -247,7 +246,7 @@ To opt-in your API service for centralized logging, add labels like this to your
 #   api:
 #     # ... your image/config ...
 #     labels:
-#       - logging=promtail
+#       - logging=alloy
 #       - service=api
 #       - env=${ENVIRONMENT:-dev}
 #       - org=peakstone
@@ -264,10 +263,10 @@ To opt-in your API service for centralized logging, add labels like this to your
   - `sum by (service) (rate({env="dev"}[5m]))`
   - `{service="postgres", component="auth"}`
 - Quick control (logging only):
-  - Up: `docker compose up -d grafana loki promtail`
-  - Down: `docker compose stop grafana loki promtail && docker compose rm -f grafana loki promtail`
-  - Status: `docker compose ps grafana loki promtail`
-- Security: Only `grafana` is exposed via Traefik. `loki` and `promtail` remain internal.
+  - Up: `docker compose -f docker-compose.yml -f docker-compose.logging.yml up -d`
+  - Down: `docker compose -f docker-compose.yml -f docker-compose.logging.yml stop grafana loki alloy && docker compose -f docker-compose.yml -f docker-compose.logging.yml rm -f grafana loki alloy`
+  - Status: `docker compose -f docker-compose.yml -f docker-compose.logging.yml ps grafana loki alloy`
+- Security: Only `grafana` should have a Dokploy Domain. `loki` and `alloy` remain internal.
 
 ## Least‑Privilege DB Roles
 
@@ -281,34 +280,66 @@ To opt-in your API service for centralized logging, add labels like this to your
   - Hasura: `postgres://hasura:${HASURA_DB_PASSWORD}@pgcat:6432/${POSTGRES_DB}`
 - If your DB is already initialized, this job safely applies changes idempotently.
 
-## Traefik Labels and Dokploy Networking
+## Dokploy Domains
 
-- Purpose: The `traefik.*` labels in `docker-compose.yml` tell Dokploy’s built‑in Traefik how to route inbound HTTPS traffic to each service and which internal port to forward to.
-- Assumptions:
-  - External network: `dokploy-network` (configurable via `PROXY_NETWORK` in `.env`).
-  - Domains: set `DOMAIN_*` variables in `.env` (e.g., `DOMAIN_API`, `DOMAIN_GQL`, `DOMAIN_FILES`, `DOMAIN_GRAFANA`).
-  - TLS: Traefik terminates TLS (LetsEncrypt) at the edge; containers stay on the internal network.
-- Exposure policy:
-  - Only `grafana` is intentionally exposed for the logging stack.
-  - `loki` and `promtail` remain internal with no public routes.
+- Dokploy v0.7+ uses native Domains. Create Domains for these services (recommended):
+  - PostgREST API (`postgrest` service): target port 3000 → `DOMAIN_API`
+  - Hasura GraphQL (`hasura` service): target port 8080 → `DOMAIN_GQL`
+  - MinIO S3 API (`minio` service): target port 9000 → `DOMAIN_FILES`
+  - MinIO Console (`minio` service): target port 9001 → `DOMAIN_MINIO_CONSOLE`
+  - imgproxy (`imgproxy` service): target port 8080 → `DOMAIN_IMG`
+  - pgAdmin (`pgadmin` service): target port 80 → `DOMAIN_PGADMIN`
+  - Grafana (`grafana` service): target port 3000 → `DOMAIN_GRAFANA`
+- Do not create Domains for internal services:
+  - Loki (`loki`), Alloy (`alloy`), Postgres (`postgres`), pgCat (`pgcat`)
+- TLS and certificates are managed by Dokploy; no labels are required in compose.
 
-Not using Dokploy/Traefik?
-- Option A — Keep labels, run your own Traefik:
-  - Ensure your Traefik instance joins the same Docker network (e.g., `dokploy-network`), has ACME configured, and honors the labels.
-- Option B — Remove labels and expose host ports directly:
-  - Delete the `traefik.*` labels for any service you want to expose and add `ports:` bindings. Point your DNS (A/AAAA records) to the host, and terminate TLS with your chosen proxy (Nginx/Caddy) or use plain HTTP for local.
-  - Example (PostgREST):
-    - Remove the `traefik.*` labels under `services.postgrest`.
-    - Add:
-      - `ports: ["3000:3000"]`
-  - Example (Grafana):
-    - Remove `traefik.*` labels under `services.grafana`.
-    - Add:
-      - `ports: ["3000:3000"]`
+### Recommended Domain Map (examples)
 
-Notes
-- If you keep Traefik, do not also publish the same service ports on the host to avoid conflicts.
-- If you change the network name, update `PROXY_NETWORK` and ensure the network exists before `docker compose up`.
+- API (PostgREST)
+  - Service: `postgrest`
+  - Port: `3000`
+  - Domain env (for documentation): `DOMAIN_API`
+  - Example: `api.example.com`
+
+- GraphQL (Hasura)
+  - Service: `hasura`
+  - Port: `8080`
+  - Domain env: `DOMAIN_GQL`
+  - Example: `gql.example.com`
+
+- MinIO S3 API
+  - Service: `minio`
+  - Port: `9000`
+  - Domain env: `DOMAIN_FILES`
+  - Example: `s3.example.com`
+
+- MinIO Console
+  - Service: `minio`
+  - Port: `9001`
+  - Domain env: `DOMAIN_MINIO_CONSOLE`
+  - Example: `minio.example.com`
+
+- imgproxy
+  - Service: `imgproxy`
+  - Port: `8080`
+  - Domain env: `DOMAIN_IMG`
+  - Example: `img.example.com`
+
+- pgAdmin
+  - Service: `pgadmin`
+  - Port: `80`
+  - Domain env: `DOMAIN_PGADMIN`
+  - Example: `dbadmin.example.com`
+
+- Grafana
+  - Service: `grafana`
+  - Port: `3000`
+  - Domain env: `DOMAIN_GRAFANA`
+  - Example: `grafana.example.com`
+
+Notes:
+- The `DOMAIN_*` variables in `.env` are for documentation and team consistency; compose does not use them. Create the Domains directly in Dokploy UI targeting the listed service and port.
 
 ## More on Logging
 
@@ -320,11 +351,11 @@ Notes
   - Do not expose `postgres:5432` or `pgcat:6432` to the Internet.
   - Inside the Docker network, services connect to `postgres:5432` and `pgcat:6432` directly.
 - Admin access options:
-  - Use `pgadmin` (exposed via Traefik at `DOMAIN_PGADMIN`).
+- Use `pgadmin` (via Dokploy Domain at `DOMAIN_PGADMIN`).
   - Use a VPN (e.g., Tailscale/WireGuard) to reach the host’s private network and connect to pgCat on `6432`.
   - Use a short‑lived SSH tunnel when needed:
     - `ssh -L 6432:localhost:6432 user@your-host` → connect client to `localhost:6432` (pgCat)
     - `ssh -L 5432:localhost:5432 user@your-host` → Postgres direct (only if required)
 - Local development (optional):
   - For local only, you may temporarily publish ports with an override file, e.g. `ports: ["5432:5432"]` under `postgres` or `ports: ["6432:6432"]` under `pgcat`.
-  - Avoid publishing ports in production; rely on Traefik + VPN/SSH for secure access.
+- Avoid publishing ports in production; rely on Dokploy Domains for HTTP services and VPN/SSH for DB admin when needed.
