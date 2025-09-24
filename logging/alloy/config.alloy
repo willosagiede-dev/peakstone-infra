@@ -124,14 +124,14 @@ loki.process "main" {
 
     stage.static_labels {
       values = {
-        component = "auth"
-        outcome   = "failed"
+        component = "auth",
+        outcome   = "failed",
       }
     }
 
     stage.labels {
       values = {
-        dbuser = "dbuser"
+        dbuser = "dbuser",
       }
     }
   }
@@ -141,8 +141,8 @@ loki.process "main" {
 
     stage.static_labels {
       values = {
-        component = "auth"
-        outcome   = "success"
+        component = "auth",
+        outcome   = "success",
       }
     }
   }
@@ -152,20 +152,20 @@ loki.process "main" {
 
     stage.json {
       expressions = {
-        level      = "level"
-        component  = "component"
-        event      = "event"
-        msg        = "msg"
-        request_id = "request_id"
-        user_id    = "user_id"
+        level      = "level",
+        component  = "component",
+        event      = "event",
+        msg        = "msg",
+        request_id = "request_id",
+        user_id    = "user_id",
       }
     }
 
     stage.labels {
       values = {
-        level     = "level"
-        component = "component"
-        event     = "event"
+        level     = "level",
+        component = "component",
+        event     = "event",
       }
     }
     // stage.drop { expression = "\"/(health|metrics)\"" }
@@ -179,4 +179,3 @@ loki.write "default" {
     url = "http://loki:3100/loki/api/v1/push"
   }
 }
-
