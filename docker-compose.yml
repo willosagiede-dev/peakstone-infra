@@ -96,8 +96,6 @@ services:
         condition: service_started
       db-bootstrap:
         condition: service_completed_successfully
-      atlas-migrate:
-        condition: service_completed_successfully
     environment:
       PGRST_DB_URI: 'host=pgcat port=6432 dbname=${POSTGRES_DB} user=db_authenticator password=${DB_AUTHENTICATOR_PASSWORD}'
       PGRST_DB_ANON_ROLE: web_anon
@@ -124,8 +122,6 @@ services:
       pgcat:
         condition: service_started
       db-bootstrap:
-        condition: service_completed_successfully
-      atlas-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz >/dev/null || exit 1"]
@@ -219,26 +215,6 @@ services:
       LOKI_SECRET_KEY: ${LOKI_SECRET_KEY}
     volumes:
       - ./minio/init:/init:ro
-
-  # One-off Atlas migrations apply (runs before app services)
-  atlas-migrate:
-    image: arigaio/atlas:latest
-    container_name: atlas-migrate
-    networks:
-      - dokploy-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      db-bootstrap:
-        condition: service_completed_successfully
-    working_dir: /workspace/atlas
-    command: ["migrate", "apply", "--dir", "file://migrations", "--url", "${ATLAS_URL}", "--allow-dirty"]
-    restart: "no"
-    environment:
-      ATLAS_URL: ${ATLAS_URL}
-    volumes:
-      - ./atlas:/workspace/atlas:ro
-
   imgproxy:
     image: darthsim/imgproxy:v3.8.0
     container_name: imgproxy
