@@ -4,6 +4,18 @@ server:
 
 auth_enabled: false
 
+common:
+  path_prefix: /var/loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  # optional for single-binary:
+  # ring:
+  #   instance_addr: 127.0.0.1
+  #   kvstore:
+  #     store: inmemory
+
 schema_config:
   configs:
     - from: "2024-01-01"
@@ -13,14 +25,19 @@ schema_config:
       index:
         prefix: loki_index_
         period: 24h
+        # path_prefix defaults to "index/"; no need to set unless you want to change it.
 
 storage_config:
   aws:
-    # Use env vars AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION
-    endpoint: ${MINIO_ENDPOINT:-minio:9000}
+    # Use env AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION (e.g., us-east-1)
+    endpoint: ${MINIO_ENDPOINT:-http://minio:9000}
     s3forcepathstyle: true
     insecure: true
     bucketnames: loki
+  tsdb_shipper:
+    # NOTE: shared_store removed in modern Loki; don't set it
+    active_index_directory: /var/loki/tsdb-index
+    cache_location: /var/loki/tsdb-cache
 
 compactor:
   working_directory: /var/loki/compactor
@@ -29,10 +46,13 @@ compactor:
   retention_enabled: true
 
 limits_config:
-  retention_period: 168h   # 7 days; adjust later
+  retention_period: 168h          # 7 days
+  max_query_lookback: 168h        # keep <= retention
   ingestion_rate_mb: 8
   ingestion_burst_size_mb: 16
   max_streams_per_user: 0
 
-chunk_store_config:
-  max_look_back_period: 168h
+querier:
+  max_concurrent: 8
+  # remove if using limits_config.max_query_lookback:
+  # max_query_lookback: 168h
