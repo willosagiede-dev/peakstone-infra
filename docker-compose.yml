@@ -107,12 +107,12 @@ services:
       PGRST_DB_PREPARED_STATEMENTS: "false"
       PGRST_OPENAPI_SERVER_PROXY_URI: https://${DOMAIN_API}
     labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.postgrest.rule=Host(`${DOMAIN_API}`)
-      - traefik.http.routers.postgrest.entrypoints=websecure
-      - traefik.http.routers.postgrest.tls=true
-      - traefik.http.services.postgrest.loadbalancer.server.port=3000
+      # - traefik.enable=true
+      # - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      # - traefik.http.routers.postgrest.rule=Host(`${DOMAIN_API}`)
+      # - traefik.http.routers.postgrest.entrypoints=websecure
+      # - traefik.http.routers.postgrest.tls=true
+      # - traefik.http.services.postgrest.loadbalancer.server.port=3000
       - logging=promtail
       - service=api
       - env=${ENVIRONMENT:-dev}
@@ -151,12 +151,12 @@ services:
       HASURA_GRAPHQL_JWT_SECRET: >
         {"type":"HS256","key":"${JWT_SECRET}","claims_namespace_path":"$","claims_format":"json"}
     labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.hasura.rule=Host(`${DOMAIN_GQL}`)
-      - traefik.http.routers.hasura.entrypoints=websecure
-      - traefik.http.routers.hasura.tls=true
-      - traefik.http.services.hasura.loadbalancer.server.port=8080
+      # - traefik.enable=true
+      # - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      # - traefik.http.routers.hasura.rule=Host(`${DOMAIN_GQL}`)
+      # - traefik.http.routers.hasura.entrypoints=websecure
+      # - traefik.http.routers.hasura.tls=true
+      # - traefik.http.services.hasura.loadbalancer.server.port=8080
       - logging=promtail
       - service=graphql
       - env=${ENVIRONMENT:-dev}
@@ -181,13 +181,13 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
-      - traefik.http.routers.pgadmin.entrypoints=websecure
-      - traefik.http.routers.pgadmin.tls=true
-      - traefik.http.services.pgadmin.loadbalancer.server.port=80
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+    #   - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
+    #   - traefik.http.routers.pgadmin.entrypoints=websecure
+    #   - traefik.http.routers.pgadmin.tls=true
+    #   - traefik.http.services.pgadmin.loadbalancer.server.port=80
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
@@ -207,16 +207,16 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.minio-api.rule=Host(`${DOMAIN_FILES}`)
-      - traefik.http.routers.minio-api.entrypoints=websecure
-      - traefik.http.routers.minio-api.tls=true
-      - traefik.http.services.minio-api.loadbalancer.server.port=9000
-      - traefik.http.routers.minio-console.rule=Host(`${DOMAIN_MINIO_CONSOLE}`)
-      - traefik.http.routers.minio-console.entrypoints=websecure
-      - traefik.http.routers.minio-console.tls=true
-      - traefik.http.services.minio-console.loadbalancer.server.port=9001
+      # - traefik.enable=true
+      # - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+      # - traefik.http.routers.minio-api.rule=Host(`${DOMAIN_FILES}`)
+      # - traefik.http.routers.minio-api.entrypoints=websecure
+      # - traefik.http.routers.minio-api.tls=true
+      # - traefik.http.services.minio-api.loadbalancer.server.port=9000
+      # - traefik.http.routers.minio-console.rule=Host(`${DOMAIN_MINIO_CONSOLE}`)
+      # - traefik.http.routers.minio-console.entrypoints=websecure
+      # - traefik.http.routers.minio-console.tls=true
+      # - traefik.http.services.minio-console.loadbalancer.server.port=9001
       - logging=promtail
       - service=storage
       - env=${ENVIRONMENT:-dev}
@@ -285,13 +285,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
-      - traefik.http.routers.imgproxy.entrypoints=websecure
-      - traefik.http.routers.imgproxy.tls=true
-      - traefik.http.services.imgproxy.loadbalancer.server.port=8080
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+    #   - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
+    #   - traefik.http.routers.imgproxy.entrypoints=websecure
+    #   - traefik.http.routers.imgproxy.tls=true
+    #   - traefik.http.services.imgproxy.loadbalancer.server.port=8080
 
   loki:
     image: grafana/loki:2.9.8
@@ -338,13 +338,13 @@ services:
     depends_on:
       loki:
         condition: service_started
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      - traefik.http.routers.grafana.rule=Host(`${DOMAIN_GRAFANA}`)
-      - traefik.http.routers.grafana.entrypoints=websecure
-      - traefik.http.routers.grafana.tls=true
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
+    #   - traefik.http.routers.grafana.rule=Host(`${DOMAIN_GRAFANA}`)
+    #   - traefik.http.routers.grafana.entrypoints=websecure
+    #   - traefik.http.routers.grafana.tls=true
+    #   - traefik.http.services.grafana.loadbalancer.server.port=3000
 
 networks:
   dokploy-network:
