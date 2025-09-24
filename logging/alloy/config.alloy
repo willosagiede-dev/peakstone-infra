@@ -3,23 +3,29 @@ logging {
   format = "logfmt"
 }
 
-// Discover Docker containers
+///////////////////////////////
+// 1) Discover Docker targets
+///////////////////////////////
 discovery.docker "docker_local" {
   host             = "unix:///var/run/docker.sock"
   refresh_interval = "10s"
 }
 
-// Keep only logging=alloy; normalize labels
+/////////////////////////////////////////
+// 2) Keep only opted-in containers and
+//    normalize/standardize labels
+/////////////////////////////////////////
 discovery.relabel "logs_select_and_normalize" {
   targets = discovery.docker.docker_local.targets
 
+  // Only scrape containers that explicitly opt in
   rule {
     action        = "keep"
     source_labels = ["__meta_docker_container_label_logging"]
     regex         = "alloy"
   }
 
-  // container name without leading '/'
+  // Normalize container name (strip leading '/')
   rule {
     source_labels = ["__meta_docker_container_name"]
     target_label  = "container"
@@ -27,28 +33,22 @@ discovery.relabel "logs_select_and_normalize" {
     replacement   = "$1"
   }
 
-  // structured labels from container labels
-  rule {
-    source_labels = ["__meta_docker_container_label_service"]
-    target_label  = "service"
-  }
-  rule {
-    source_labels = ["__meta_docker_container_label_env"]
-    target_label  = "env"
-  }
-  rule {
-    source_labels = ["__meta_docker_container_label_org"]
-    target_label  = "org"
-  }
+  // Structured, low-cardinality labels
+  rule { source_labels = ["__meta_docker_container_label_service"]; target_label = "service" }
+  rule { source_labels = ["__meta_docker_container_label_env"];     target_label = "env" }
+  rule { source_labels = ["__meta_docker_container_label_org"];     target_label = "org" }
 
-  // stdout|stderr
-  rule {
-    source_labels = ["__meta_docker_container_log_stream"]
-    target_label  = "stream"
-  }
+  // Capture stdout|stderr for easier filtering
+  rule { source_labels = ["__meta_docker_container_log_stream"]; target_label = "stream" }
+
+  // Optional: set defaults if labels are missing (prevents null-cardinality explosions)
+  // rule { target_label = "env";  replacement = "dev"     }  // acts like a static default
+  // rule { target_label = "org";  replacement = "peakstone" }
 }
 
-// Read Docker logs → processing pipeline
+/////////////////////////////////////////////
+// 3) Read Docker logs and feed processing
+/////////////////////////////////////////////
 loki.source.docker "containers" {
   host             = "unix:///var/run/docker.sock"
   targets          = discovery.relabel.logs_select_and_normalize.output
@@ -57,124 +57,86 @@ loki.source.docker "containers" {
   forward_to       = [loki.process.main.receiver]
 }
 
-// Pipeline: ported from Promtail
+/////////////////////////////////////////////
+// 4) Pipeline: parse, drop noise, enrich
+/////////////////////////////////////////////
 loki.process "main" {
+  // Parse Docker JSON wrapper (sets timestamp/stream + extracts message)
   stage.docker {}
 
-  // MinIO noise + HTTP status extraction
+  // ----- MinIO / Storage logs -----
   stage.match {
     selector = "{service=\"storage\"}"
 
-    stage.drop {
-      expression = "(/minio/health|/metrics|/favicon\\.ico)"
-    }
-    stage.drop {
-      expression = "HTTP/[0-9.]+\\\" [23]\\d\\d"
-    }
-    stage.regex {
-      expression = "HTTP/\\S+\\\" (?P<status>\\d{3})"
-    }
-    stage.labels {
-      values = {
-        status = "status"
-      }
-    }
+    // Drop health/metrics noise and successful 2xx/3xx lines
+    stage.drop  { expression = "(/minio/health|/metrics|/favicon\\.ico)" }
+    stage.drop  { expression = "HTTP/[0-9.]+\\\" [23]\\d\\d" }
+
+    // Extract HTTP status from remaining lines
+    stage.regex  { expression = "HTTP/\\S+\\\" (?P<status>\\d{3})" }
+    stage.labels { values = { status = "status" } }
   }
 
-  // Postgres enrich (log_line_prefix)
+  // ----- Postgres logs -----
   stage.match {
     selector = "{service=\"postgres\"}"
 
-    stage.regex {
-      expression = "user=(?P<dbuser>\\S+) db=(?P<database>\\S+) app=(?P<app>[^ ]+) client=(?P<client>\\S+)"
-    }
-    stage.labels {
-      values = {
-        dbuser   = "dbuser"
-        database = "database"
-        app      = "app"
-        client   = "client"
-      }
-    }
+    // Enrich with connection context (matches standard log_line_prefix fields)
+    stage.regex  { expression = "user=(?P<dbuser>\\S+) db=(?P<database>\\S+) app=(?P<app>[^ ]+) client=(?P<client>\\S+)" }
+    stage.labels { values = { dbuser = "dbuser", database = "database", app = "app", client = "client" } }
 
-    stage.regex {
-      expression = " (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\\d?)[: ]"
-    }
-    stage.labels {
-      values = {
-        severity = "severity"
-      }
-    }
+    // Extract coarse severity (INFO/ERROR/etc.)
+    stage.regex  { expression = " (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\\d?)[: ]" }
+    stage.labels { values = { severity = "severity" } }
 
+    // Tag pg_cron lines
     stage.match {
       selector = "{service=\"postgres\"} |= \"pg_cron\""
-      stage.static_labels {
-        values = {
-          component = "pg_cron"
-        }
-      }
+      stage.static_labels { values = { component = "pg_cron" } }
     }
 
+    // Auth failures
     stage.match {
       selector = "{service=\"postgres\"} |= \"password authentication failed\""
-      stage.regex {
-        expression = "password authentication failed for user \\\"(?P<dbuser>[^\\\"]+)\\\""
-      }
-      stage.static_labels {
-        values = {
-          component = "auth"
-          outcome   = "failed"
-        }
-      }
-      stage.labels {
-        values = {
-          dbuser = "dbuser"
-        }
-      }
+      stage.regex         { expression = "password authentication failed for user \\\"(?P<dbuser>[^\\\"]+)\\\"" }
+      stage.static_labels { values = { component = "auth", outcome = "failed" } }
+      stage.labels        { values = { dbuser = "dbuser" } }
     }
 
+    // Auth success
     stage.match {
       selector = "{service=\"postgres\"} |= \"connection authorized\""
-      stage.static_labels {
-        values = {
-          component = "auth"
-          outcome   = "success"
-        }
-      }
+      stage.static_labels { values = { component = "auth", outcome = "success" } }
     }
   }
 
-  // API JSON logs (promote low-cardinality only)
+  // ----- API logs (JSON) -----
   stage.match {
     selector = "{service=\"api\"}"
 
+    // Parse JSON; DO NOT promote high-cardinality fields as labels
     stage.json {
       expressions = {
-        level      = "level"
-        component  = "component"
-        event      = "event"
-        msg        = "msg"
-        request_id = "request_id"
-        user_id    = "user_id"
+        level      = "level",
+        component  = "component",
+        event      = "event",
+        msg        = "msg",
+        request_id = "request_id", // parsed for search, not labeled
+        user_id    = "user_id"     // parsed for search, not labeled
       }
     }
-    stage.labels {
-      values = {
-        level     = "level"
-        component = "component"
-        event     = "event"
-      }
-    }
-    // stage.drop { expression = "\"/(health|metrics)\"" } // optional
+    stage.labels { values = { level = "level", component = "component", event = "event" } }
+
+    // Optional: drop chatty health endpoints if needed
+    // stage.drop { expression = "\"/(health|metrics)\"" }
   }
 
   forward_to = [loki.write.default.receiver]
 }
 
-// Push to Loki
+/////////////////////////
+// 5) Push to Loki
+/////////////////////////
 loki.write "default" {
-  endpoint {
-    url = "http://loki:3100/loki/api/v1/push"
-  }
+  endpoint { url = "http://loki:3100/loki/api/v1/push" }
 }
-

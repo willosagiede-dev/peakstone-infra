@@ -35,7 +35,7 @@ storage_config:
     insecure: true
     bucketnames: loki
   tsdb_shipper:
-    shared_store: s3
+    # shared_store: s3
     active_index_directory: /var/loki/tsdb-index
     cache_location: /var/loki/tsdb-cache
 
