@@ -148,7 +148,7 @@ services:
       - org=peakstone
 
   pgadmin:
-    image: dpage/pgadmin4:8.12
+    image: dpage/pgadmin4:9.8
     container_name: pgadmin
     restart: unless-stopped
     networks:
