@@ -145,18 +145,18 @@ It prints:
 - We use Atlas (ariga.io/atlas) for versioned migrations.
 - Repo layout:
   - `atlas/migrations/` stores migration files.
-- One‑off job: `atlas-migrate` runs `atlas migrate apply --dir file://migrations --url ${ATLAS_URL}` before app services start.
 - Configure URL in `.env` (or Dokploy):
   - `ATLAS_URL` (use `db_migrator` credentials for the target env)
   - Note: DDL on existing objects may require ownership. We set schema ownership to `db_migrator` for a new DB to simplify this.
 
 Local dev flow
-- Apply with URL: `docker compose run --rm atlas-migrate atlas migrate apply --dir file://migrations --url $ATLAS_URL`
+- Run migrations manually when you have files under `atlas/migrations/`. Example:
+  - `docker run --rm --network=dokploy-network -v $(pwd)/atlas:/workspace/atlas arigaio/atlas:latest migrate apply --dir file://migrations --url $ATLAS_URL --allow-dirty`
 - Diff (from dev DB): run Atlas locally on your machine against dev DB and write files under `atlas/migrations`.
 
 Deploy flow (Dokploy)
 - Ensure `ATLAS_URL` is set in the environment to your target DB.
-- `atlas-migrate` runs automatically in the compose (one‑off) and app services depend on its success.
+- Run the same command above as a pre-deploy step if you have new migrations. There is no automatic atlas job in compose.
 
 ## Migrating from Supabase
 
