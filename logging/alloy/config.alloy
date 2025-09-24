@@ -3,13 +3,11 @@ logging {
   format = "logfmt"
 }
 
-// Discover Docker containers
 discovery.docker "docker_local" {
   host             = "unix:///var/run/docker.sock"
   refresh_interval = "10s"
 }
 
-// Keep only logging=alloy; normalize labels
 discovery.relabel "logs_select_and_normalize" {
   targets = discovery.docker.docker_local.targets
 
@@ -30,10 +28,12 @@ discovery.relabel "logs_select_and_normalize" {
     source_labels = ["__meta_docker_container_label_service"]
     target_label  = "service"
   }
+
   rule {
     source_labels = ["__meta_docker_container_label_env"]
     target_label  = "env"
   }
+
   rule {
     source_labels = ["__meta_docker_container_label_org"]
     target_label  = "org"
@@ -45,7 +45,6 @@ discovery.relabel "logs_select_and_normalize" {
   }
 }
 
-// Read Docker logs → processing pipeline
 loki.source.docker "containers" {
   host             = "unix:///var/run/docker.sock"
   targets          = discovery.relabel.logs_select_and_normalize.output
@@ -54,7 +53,6 @@ loki.source.docker "containers" {
   forward_to       = [loki.process.main.receiver]
 }
 
-// Pipeline: ported from Promtail
 loki.process "main" {
   stage.docker {}
 
@@ -64,12 +62,15 @@ loki.process "main" {
     stage.drop {
       expression = "(/minio/health|/metrics|/favicon\\.ico)"
     }
+
     stage.drop {
       expression = "HTTP/[0-9.]+\\\" [23]\\d\\d"
     }
+
     stage.regex {
       expression = "HTTP/\\S+\\\" (?P<status>\\d{3})"
     }
+
     stage.labels {
       values = {
         status = "status"
@@ -83,6 +84,7 @@ loki.process "main" {
     stage.regex {
       expression = "user=(?P<dbuser>\\S+) db=(?P<database>\\S+) app=(?P<app>[^ ]+) client=(?P<client>\\S+)"
     }
+
     stage.labels {
       values = {
         dbuser   = "dbuser"
@@ -95,6 +97,7 @@ loki.process "main" {
     stage.regex {
       expression = " (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\\d?)[: ]"
     }
+
     stage.labels {
       values = {
         severity = "severity"
@@ -104,6 +107,7 @@ loki.process "main" {
 
   stage.match {
     selector = "{service=\"postgres\"} |= \"pg_cron\""
+
     stage.static_labels {
       values = {
         component = "pg_cron"
@@ -117,12 +121,14 @@ loki.process "main" {
     stage.regex {
       expression = "password authentication failed for user \\\"(?P<dbuser>[^\\\"]+)\\\""
     }
+
     stage.static_labels {
       values = {
         component = "auth"
         outcome   = "failed"
       }
     }
+
     stage.labels {
       values = {
         dbuser = "dbuser"
@@ -132,6 +138,7 @@ loki.process "main" {
 
   stage.match {
     selector = "{service=\"postgres\"} |= \"connection authorized\""
+
     stage.static_labels {
       values = {
         component = "auth"
@@ -153,6 +160,7 @@ loki.process "main" {
         user_id    = "user_id"
       }
     }
+
     stage.labels {
       values = {
         level     = "level"
@@ -166,7 +174,6 @@ loki.process "main" {
   forward_to = [loki.write.default.receiver]
 }
 
-// Push to Loki
 loki.write "default" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"
