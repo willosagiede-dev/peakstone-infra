@@ -1,4 +1,7 @@
-logging { level = "info" format = "logfmt" }
+logging {
+  level  = "info"
+  format = "logfmt"
+}
 
 // Discover Docker containers
 discovery.docker "docker_local" {
@@ -10,18 +13,39 @@ discovery.docker "docker_local" {
 discovery.relabel "logs_select_and_normalize" {
   targets = discovery.docker.docker_local.targets
 
-  rule { action = "keep" source_labels = ["__meta_docker_container_label_logging"] regex = "alloy" }
+  rule {
+    action        = "keep"
+    source_labels = ["__meta_docker_container_label_logging"]
+    regex         = "alloy"
+  }
 
   // container name without leading '/'
-  rule { source_labels = ["__meta_docker_container_name"] target_label = "container" regex = "/(.*)" replacement = "$1" }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
 
   // structured labels from container labels
-  rule { source_labels = ["__meta_docker_container_label_service"]; target_label = "service" }
-  rule { source_labels = ["__meta_docker_container_label_env"];     target_label = "env" }
-  rule { source_labels = ["__meta_docker_container_label_org"];     target_label = "org" }
+  rule {
+    source_labels = ["__meta_docker_container_label_service"]
+    target_label  = "service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_env"]
+    target_label  = "env"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_org"]
+    target_label  = "org"
+  }
 
   // stdout|stderr
-  rule { source_labels = ["__meta_docker_container_log_stream"]; target_label = "stream" }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
 }
 
 // Read Docker logs → processing pipeline
@@ -40,55 +64,107 @@ loki.process "main" {
   // MinIO noise + HTTP status extraction
   stage.match {
     selector = "{service=\"storage\"}"
-    stage.drop  { expression = "(/minio/health|/metrics|/favicon\\.ico)" }
-    stage.drop  { expression = "HTTP/[0-9.]+\\\" [23]\\d\\d" }
-    stage.regex { expression = "HTTP/\\S+\\\" (?P<status>\\d{3})" }
-    stage.labels { values = { status = "status" } }
+
+    stage.drop {
+      expression = "(/minio/health|/metrics|/favicon\\.ico)"
+    }
+    stage.drop {
+      expression = "HTTP/[0-9.]+\\\" [23]\\d\\d"
+    }
+    stage.regex {
+      expression = "HTTP/\\S+\\\" (?P<status>\\d{3})"
+    }
+    stage.labels {
+      values = {
+        status = "status"
+      }
+    }
   }
 
   // Postgres enrich (log_line_prefix)
   stage.match {
     selector = "{service=\"postgres\"}"
-    stage.regex  { expression = "user=(?P<dbuser>\\S+) db=(?P<database>\\S+) app=(?P<app>[^ ]+) client=(?P<client>\\S+)" }
-    stage.labels { values = { dbuser = "dbuser", database = "database", app = "app", client = "client" } }
-    stage.regex  { expression = " (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\\d?)[: ]" }
-    stage.labels { values = { severity = "severity" } }
 
-    // Tag pg_cron
+    stage.regex {
+      expression = "user=(?P<dbuser>\\S+) db=(?P<database>\\S+) app=(?P<app>[^ ]+) client=(?P<client>\\S+)"
+    }
+    stage.labels {
+      values = {
+        dbuser   = "dbuser"
+        database = "database"
+        app      = "app"
+        client   = "client"
+      }
+    }
+
+    stage.regex {
+      expression = " (?P<severity>LOG|ERROR|WARNING|FATAL|PANIC|NOTICE|INFO|DEBUG\\d?)[: ]"
+    }
+    stage.labels {
+      values = {
+        severity = "severity"
+      }
+    }
+
     stage.match {
       selector = "{service=\"postgres\"} |= \"pg_cron\""
-      stage.static_labels { values = { component = "pg_cron" } }
+      stage.static_labels {
+        values = {
+          component = "pg_cron"
+        }
+      }
     }
 
-    // Auth failures
     stage.match {
       selector = "{service=\"postgres\"} |= \"password authentication failed\""
-      stage.regex { expression = "password authentication failed for user \\\"(?P<dbuser>[^\\\"]+)\\\"" }
-      stage.static_labels { values = { component = "auth", outcome = "failed" } }
-      stage.labels        { values = { dbuser = "dbuser" } }
+      stage.regex {
+        expression = "password authentication failed for user \\\"(?P<dbuser>[^\\\"]+)\\\""
+      }
+      stage.static_labels {
+        values = {
+          component = "auth"
+          outcome   = "failed"
+        }
+      }
+      stage.labels {
+        values = {
+          dbuser = "dbuser"
+        }
+      }
     }
 
-    // Auth success
     stage.match {
       selector = "{service=\"postgres\"} |= \"connection authorized\""
-      stage.static_labels { values = { component = "auth", outcome = "success" } }
+      stage.static_labels {
+        values = {
+          component = "auth"
+          outcome   = "success"
+        }
+      }
     }
   }
 
   // API JSON logs (promote low-cardinality only)
   stage.match {
     selector = "{service=\"api\"}"
+
     stage.json {
       expressions = {
-        level      = "level",
-        component  = "component",
-        event      = "event",
-        msg        = "msg",
-        request_id = "request_id",
+        level      = "level"
+        component  = "component"
+        event      = "event"
+        msg        = "msg"
+        request_id = "request_id"
         user_id    = "user_id"
       }
     }
-    stage.labels { values = { level = "level", component = "component", event = "event" } }
+    stage.labels {
+      values = {
+        level     = "level"
+        component = "component"
+        event     = "event"
+      }
+    }
     // stage.drop { expression = "\"/(health|metrics)\"" } // optional
   }
 
@@ -97,6 +173,8 @@ loki.process "main" {
 
 // Push to Loki
 loki.write "default" {
-  endpoint { url = "http://loki:3100/loki/api/v1/push" }
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
 }
 

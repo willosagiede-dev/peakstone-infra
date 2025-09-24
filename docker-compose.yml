@@ -277,6 +277,7 @@ services:
 
   loki:
     image: grafana/loki:2.9.8
+    container_name: loki
     command: ["-config.file=/etc/loki/loki-config.yml"]
     networks:
       - dokploy-network
@@ -285,7 +286,7 @@ services:
       AWS_ACCESS_KEY_ID: ${LOKI_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${LOKI_SECRET_KEY}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
     volumes:
       - ./logging/loki-config.yml:/etc/loki/loki-config.yml:ro
       - loki_data:/var/loki
@@ -295,6 +296,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.1.0
+    container_name: grafana
     networks:
       - dokploy-network
     environment:

@@ -263,9 +263,9 @@ To opt-in your API service for centralized logging, add labels like this to your
   - `sum by (service) (rate({env="dev"}[5m]))`
   - `{service="postgres", component="auth"}`
 - Quick control (logging only):
-  - Up: `docker compose -f docker-compose.yml -f docker-compose.logging.yml up -d`
-  - Down: `docker compose -f docker-compose.yml -f docker-compose.logging.yml stop grafana loki alloy && docker compose -f docker-compose.yml -f docker-compose.logging.yml rm -f grafana loki alloy`
-  - Status: `docker compose -f docker-compose.yml -f docker-compose.logging.yml ps grafana loki alloy`
+  - Up: `docker compose up -d grafana loki alloy`
+  - Down: `docker compose stop grafana loki alloy && docker compose rm -f grafana loki alloy`
+  - Status: `docker compose ps grafana loki alloy`
 - Security: Only `grafana` should have a Dokploy Domain. `loki` and `alloy` remain internal.
 
 ## Least‑Privilege DB Roles

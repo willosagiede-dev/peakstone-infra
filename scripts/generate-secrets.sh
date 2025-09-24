@@ -91,8 +91,8 @@ MINIO_ROOT_PASS=${MINIO_ROOT_PASS}
 MINIO_BUCKET=uploads
 MINIO_ALIAS=minio # mc alias name (not a secret)
 
-# Endpoint for MinIO inside the Docker network
-MINIO_ENDPOINT=minio:9000
+# Endpoint for MinIO inside the Docker network (include scheme)
+MINIO_ENDPOINT=http://minio:9000
 AWS_REGION=us-east-1
 
 # S3 Access Keys
@@ -109,7 +109,7 @@ IMGPROXY_SALT_HEX=${IMGPROXY_SALT_HEX}
 IMGPROXY_BASE_URL=https://s3.internal.example.com/
 IMGPROXY_ALLOWED_SOURCES=https://s3.internal.example.com/
 
-# --- Domains (internal HTTPS via Dokploy Traefik) ---
+# --- Domains (Dokploy) ---
 DOMAIN_API=api.example.com      # → PostgREST
 DOMAIN_GQL=gql.example.com      # → Hasura
 DOMAIN_FILES=s3.example.com     # → MinIO (S3 API)
@@ -118,7 +118,7 @@ DOMAIN_IMG=img.example.com      # → imgproxy
 DOMAIN_PGADMIN=dbadmin.example.com     # → pgAdmin
 DOMAIN_GRAFANA=grafana.example.com     # → Grafana
 
-# --- Logging stack (Loki/Promtail/Grafana) ---
+# --- Logging stack (Loki/Alloy/Grafana) ---
 # Grafana bootstrap credentials
 GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER}
 GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}

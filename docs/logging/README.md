@@ -17,7 +17,7 @@ Environment Variables (set via .env or Dokploy)
 # Dedicated MinIO credentials used by Loki (AWS SDK)
 LOKI_ACCESS_KEY=REPLACE_ME
 LOKI_SECRET_KEY=REPLACE_ME
-MINIO_ENDPOINT=minio:9000
+MINIO_ENDPOINT=http://minio:9000
 AWS_REGION=us-east-1
 
 # Grafana bootstrap
