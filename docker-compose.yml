@@ -32,7 +32,7 @@ services:
       retries: 18
       start_period: 90s
     labels:
-      - logging=promtail
+      - logging=alloy
       - service=postgres
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
@@ -78,7 +78,7 @@ services:
       retries: 5
       start_period: 10s
     labels:
-      - logging=promtail
+      - logging=alloy
       - service=pooler
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
@@ -107,13 +107,7 @@ services:
       PGRST_DB_PREPARED_STATEMENTS: "false"
       PGRST_OPENAPI_SERVER_PROXY_URI: https://${DOMAIN_API}
     labels:
-      # - traefik.enable=true
-      # - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      # - traefik.http.routers.postgrest.rule=Host(`${DOMAIN_API}`)
-      # - traefik.http.routers.postgrest.entrypoints=websecure
-      # - traefik.http.routers.postgrest.tls=true
-      # - traefik.http.services.postgrest.loadbalancer.server.port=3000
-      - logging=promtail
+      - logging=alloy
       - service=api
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
@@ -140,7 +134,8 @@ services:
       retries: 5
       start_period: 30s
     environment:
-      HASURA_GRAPHQL_DATABASE_URL: 'host=pgcat port=6432 dbname=${POSTGRES_DB} user=hasura password=${HASURA_DB_PASSWORD}'
+      HASURA_GRAPHQL_DATABASE_URL: ${HASURA_GRAPHQL_DATABASE_URL}
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: ${HASURA_GRAPHQL_METADATA_DATABASE_URL:-${HASURA_GRAPHQL_DATABASE_URL}}
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET}
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: web_anon
       HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
@@ -151,13 +146,7 @@ services:
       HASURA_GRAPHQL_JWT_SECRET: >
         {"type":"HS256","key":"${JWT_SECRET}","claims_namespace_path":"$","claims_format":"json"}
     labels:
-      # - traefik.enable=true
-      # - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      # - traefik.http.routers.hasura.rule=Host(`${DOMAIN_GQL}`)
-      # - traefik.http.routers.hasura.entrypoints=websecure
-      # - traefik.http.routers.hasura.tls=true
-      # - traefik.http.services.hasura.loadbalancer.server.port=8080
-      - logging=promtail
+      - logging=alloy
       - service=graphql
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
@@ -181,13 +170,7 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-    #   - traefik.http.routers.pgadmin.rule=Host(`${DOMAIN_PGADMIN}`)
-    #   - traefik.http.routers.pgadmin.entrypoints=websecure
-    #   - traefik.http.routers.pgadmin.tls=true
-    #   - traefik.http.services.pgadmin.loadbalancer.server.port=80
+    
 
   minio:
     image: ${MINIO_IMAGE:-minio/minio:latest}
@@ -207,17 +190,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      # - traefik.enable=true
-      # - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-      # - traefik.http.routers.minio-api.rule=Host(`${DOMAIN_FILES}`)
-      # - traefik.http.routers.minio-api.entrypoints=websecure
-      # - traefik.http.routers.minio-api.tls=true
-      # - traefik.http.services.minio-api.loadbalancer.server.port=9000
-      # - traefik.http.routers.minio-console.rule=Host(`${DOMAIN_MINIO_CONSOLE}`)
-      # - traefik.http.routers.minio-console.entrypoints=websecure
-      # - traefik.http.routers.minio-console.tls=true
-      # - traefik.http.services.minio-console.loadbalancer.server.port=9001
-      - logging=promtail
+      - logging=alloy
       - service=storage
       - env=${ENVIRONMENT:-dev}
       - org=peakstone
@@ -285,13 +258,22 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-    #   - traefik.http.routers.imgproxy.rule=Host(`${DOMAIN_IMG}`)
-    #   - traefik.http.routers.imgproxy.entrypoints=websecure
-    #   - traefik.http.routers.imgproxy.tls=true
-    #   - traefik.http.services.imgproxy.loadbalancer.server.port=8080
+    
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    networks:
+      - dokploy-network
+    command: ["run","--server.http.listen-addr=0.0.0.0:12345","--storage.path=/var/lib/alloy/data","/etc/alloy/config.alloy"]
+    volumes:
+      - ./logging/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_started
+    expose:
+      - "12345"
 
   loki:
     image: grafana/loki:2.9.8
@@ -311,20 +293,6 @@ services:
       minio:
         condition: service_started
 
-  promtail:
-    image: grafana/promtail:2.9.8
-    command: ["-config.file=/etc/promtail/promtail-config.yml"]
-    networks:
-      - dokploy-network
-    volumes:
-      - ./logging/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - promtail_pos:/var/lib/promtail
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    depends_on:
-      loki:
-        condition: service_started
-
   grafana:
     image: grafana/grafana:11.1.0
     networks:
@@ -338,20 +306,13 @@ services:
     depends_on:
       loki:
         condition: service_started
-    # labels:
-    #   - traefik.enable=true
-    #   - traefik.docker.network=${PROXY_NETWORK:-dokploy-network}
-    #   - traefik.http.routers.grafana.rule=Host(`${DOMAIN_GRAFANA}`)
-    #   - traefik.http.routers.grafana.entrypoints=websecure
-    #   - traefik.http.routers.grafana.tls=true
-    #   - traefik.http.services.grafana.loadbalancer.server.port=3000
 
 networks:
   dokploy-network:
     external: true
 
 volumes:
+  pgadmin_data:
+  alloy_data:
   loki_data:
   grafana_data:
-  promtail_pos:
-  pgadmin_data:
