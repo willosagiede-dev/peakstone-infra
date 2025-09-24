@@ -1,14 +1,14 @@
-# Centralized Logging with Loki, Promtail, Grafana (MinIO backend)
+# Centralized Logging with Loki, Alloy, Grafana (MinIO backend)
 
 What
 -
 - Loki stores log chunks and indexes in MinIO (bucket `loki`) using TSDB with 7-day retention.
-- Promtail scrapes Docker containers that opt-in via `logging=promtail` label and ships logs to Loki.
+- Grafana Alloy (River) collects Docker logs (opt-in via `logging=alloy`) and ships logs to Loki.
 - Grafana provides UI to query (LogQL), explore, dashboard, and live tail logs.
 
 Access
 -
-- Grafana is exposed via Traefik/Dokploy Domains (keep Loki/Promtail internal).
+- Grafana is exposed via Dokploy Domains (keep Loki/Alloy internal).
 - Example domain: https://grafana.dev.your-domain.com (set `DOMAIN_GRAFANA` in env and deploy).
 
 Environment Variables (set via .env or Dokploy)
@@ -31,11 +31,12 @@ Notes:
 
 Compose
 -
-- One compose file now includes logging. Start all or just logging services:
-  - All services: `docker compose up -d`
-  - Only logging: `docker compose up -d grafana loki promtail`
+- Start all services (includes Alloy):
+  - `docker compose up -d`
+- Start only logging services:
+  - `docker compose up -d grafana loki alloy`
 - Stop/remove only logging services:
-  - `docker compose stop grafana loki promtail && docker compose rm -f grafana loki promtail`
+  - `docker compose stop grafana loki alloy && docker compose rm -f grafana loki alloy`
 
 MinIO bucket initialization
 -
@@ -43,35 +44,35 @@ MinIO bucket initialization
 
 Opt-in scraping via labels
 -
-Add labels only to services you want scraped (avoid noise/high cardinality):
+Add labels only to services you want collected (avoid noise/high cardinality):
 
 ```yaml
 services:
   api:
     # ... existing config ...
     labels:
-      logging: "promtail"
+      logging: "alloy"
       service: "api"
       env: "${ENVIRONMENT:-dev}"
       org: "peakstone"
 
   storage:
     labels:
-      logging: "promtail"
+      logging: "alloy"
       service: "storage"
       env: "${ENVIRONMENT:-dev}"
       org: "peakstone"
 
   graphql:
     labels:
-      logging: "promtail"
+      logging: "alloy"
       service: "graphql"
       env: "${ENVIRONMENT:-dev}"
       org: "peakstone"
 
   pgcat:
     labels:
-      logging: "promtail"
+      logging: "alloy"
       service: "pooler"
       env: "${ENVIRONMENT:-dev}"
       org: "peakstone"
@@ -85,7 +86,7 @@ Quick snippet to copy into your compose
 #   api:
 #     # ... your image/config ...
 #     labels:
-#       - logging=promtail
+#       - logging=alloy
 #       - service=api
 #       - env=${ENVIRONMENT:-dev}
 #       - org=peakstone
@@ -107,8 +108,8 @@ Tips
 
 App JSON logging (API)
 -
-- Label your API service with `logging=promtail` and `service=api` in `docker-compose.yml` (or in Dokploy service labels).
-- Emit structured JSON to stdout. Promtail extracts fields `level`, `msg`, `component`, `event`, `user_id`, `request_id` as labels for `service=api`.
+- Label your API service with `logging=alloy` and `service=api` in `docker-compose.yml` (or in Dokploy service labels).
+- Emit structured JSON to stdout. Alloy extracts fields `level`, `msg`, `component`, `event`, `user_id`, `request_id` and promotes a subset as labels (see config.alloy).
 
 Node (pino) example:
 ```js
@@ -137,14 +138,14 @@ Query examples:
 
 Rollback
 -
-- Stop/remove logging services and remove labels from any services you no longer want scraped:
-  - `docker compose stop grafana loki promtail && docker compose rm -f grafana loki promtail`
+- Stop/remove logging services and remove labels from any services you no longer want collected:
+  - `docker compose stop grafana loki alloy && docker compose rm -f grafana loki alloy`
 
 Acceptance checklist
 -
-- [ ] `loki`, `promtail`, and `grafana` containers are healthy.
+- [ ] `loki`, `alloy`, and `grafana` containers are healthy.
 - [ ] MinIO shows `loki` bucket and objects after a few minutes.
 - [ ] Visiting Grafana domain authenticates and shows Loki as the default data source.
 - [ ] Logs from at least `api` and `storage` appear in Grafana → Explore within 1–2 minutes.
 - [ ] Sample LogQL queries return results.
-- [ ] Removing the `logging=promtail` label stops ingest for that service.
+- [ ] Removing the `logging=alloy` label stops ingest for that service.
