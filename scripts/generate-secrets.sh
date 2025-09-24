@@ -19,6 +19,8 @@ POSTGRES_SUPERUSER=${POSTGRES_SUPERUSER:-postgres}
 
 rand_b64() { openssl rand -base64 "$1"; }
 rand_hex() { openssl rand -hex "$1"; }
+# URL-safe random (base64url without padding): uses only [A-Za-z0-9_-]
+rand_url() { openssl rand -base64 "$1" | tr '+/' '-_' | tr -d '='; }
 
 # Generate values
 POSTGRES_SUPERPASS=$(rand_b64 24)
@@ -28,11 +30,11 @@ MINIO_ROOT_PASS=$(rand_b64 24)
 S3_APP_SECRET_KEY=$(rand_b64 24)
 IMGPROXY_KEY_HEX=$(rand_hex 32)    # 32 bytes hex -> 64 chars
 IMGPROXY_SALT_HEX=$(rand_hex 16)   # 16 bytes hex -> 32 chars
-PGADMIN_PASSWORD=$(rand_b64 24)
+PGADMIN_PASSWORD=$(rand_url 24)
 
 # Logging / Grafana / Loki
 GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-GRAFANA_ADMIN_PASSWORD=$(rand_b64 24)
+GRAFANA_ADMIN_PASSWORD=$(rand_url 24)
 LOKI_ACCESS_KEY=$(rand_hex 20)
 LOKI_SECRET_KEY=$(rand_b64 24)
 
@@ -41,9 +43,9 @@ PGCAT_ADMIN_USER=${PGCAT_ADMIN_USER:-pgcat}
 PGCAT_ADMIN_PASSWORD=$(rand_b64 24)
 
 # DB app roles
-DB_AUTHENTICATOR_PASSWORD=$(rand_b64 24)
-HASURA_DB_PASSWORD=$(rand_b64 24)
-DB_MIGRATOR_PASSWORD=$(rand_b64 24)
+DB_AUTHENTICATOR_PASSWORD=$(rand_url 24)
+HASURA_DB_PASSWORD=$(rand_url 24)
+DB_MIGRATOR_PASSWORD=$(rand_url 24)
 
 cat <<EOF
 # ---- Copy/paste into .env (adjust emails/domains) and copy pgcat config below to your mounted /etc/pgcat.toml ----
@@ -66,6 +68,10 @@ DB_MIGRATOR_PASSWORD=${DB_MIGRATOR_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 HASURA_ADMIN_SECRET=${HASURA_ADMIN_SECRET}
 HASURA_CORS=https://app.example.com,https://backoffice.example.com
+
+# Hasura database URLs (passwords are URL-safe; no escaping needed)
+HASURA_GRAPHQL_DATABASE_URL=postgres://hasura:${HASURA_DB_PASSWORD}@pgcat:6432/${POSTGRES_DB}?sslmode=disable
+HASURA_GRAPHQL_METADATA_DATABASE_URL=postgres://hasura:${HASURA_DB_PASSWORD}@pgcat:6432/${POSTGRES_DB}?sslmode=disable
 
 # Local bind paths for persisted data (adjust if not using Dokploy's ../files/ structure)
 PG_DATA_HOST_DIR=../files/volumes/db
@@ -125,13 +131,8 @@ LOKI_SECRET_KEY=${LOKI_SECRET_KEY}
 ENVIRONMENT=dev
 
 # --- Atlas migrations ---
-# Select env for atlas-migrate one-off job: dev|staging|prod
-ATLAS_ENV=prod
-# Connection URLs (do not commit real secrets; set in Dokploy for prod)
-# Prefer a dedicated migrator role (db_migrator) for Atlas
-ATLAS_DEV_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@localhost:5432/${POSTGRES_DB}?sslmode=disable
-ATLAS_STAGING_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-ATLAS_PROD_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+# Single URL used by atlas-migrate one-off job (set per env)
+ATLAS_URL=postgres://db_migrator:${DB_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
 
 # -----------------------------------------------------------
 # Remove the section below from your .env
