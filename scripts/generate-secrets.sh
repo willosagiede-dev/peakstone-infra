@@ -90,9 +90,6 @@ MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASS=${MINIO_ROOT_PASS}
 MINIO_BUCKET=uploads
 MINIO_ALIAS=minio # mc alias name (not a secret)
-
-# Endpoint for MinIO inside the Docker network (include scheme)
-MINIO_ENDPOINT=http://minio:9000
 AWS_REGION=us-east-1
 
 # S3 Access Keys
