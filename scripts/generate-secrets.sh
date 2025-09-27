@@ -54,6 +54,7 @@ cat <<EOF
 POSTGRES_DB=postgres
 POSTGRES_SUPERUSER=postgres
 POSTGRES_SUPERPASS=${POSTGRES_SUPERPASS}
+POSTGRES_PORT=127.0.0.1:5432
 TZ=UTC # or America/Denver, pg_cron follows server TZ
 
 # Postgres custom image

@@ -358,4 +358,5 @@ Notes:
     - `ssh -L 5432:localhost:5432 user@your-host` → Postgres direct (only if required)
 - Local development (optional):
   - For local only, you may temporarily publish ports with an override file, e.g. `ports: ["5432:5432"]` under `postgres` or `ports: ["6432:6432"]` under `pgcat`.
-- Avoid publishing ports in production; rely on Dokploy Domains for HTTP services and VPN/SSH for DB admin when needed.
+  - You must also allow incoming connection to port 5432 in your firewall.
+  - Avoid publishing ports in production; rely on Dokploy Domains for HTTP services and VPN/SSH for DB admin when needed.

@@ -4,6 +4,8 @@ services:
     image: ${POSTGRES_IMAGE}
     container_name: postgres
     restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT}:5432"
     networks:
       - dokploy-network
     environment:
